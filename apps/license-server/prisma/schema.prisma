@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://postgres:postgres@localhost:51214/autowhats"
+}
+
+model License {
+  id           String   @id @default(uuid())
+  purchaseCode String   @unique
+  licenseKey   String   @unique
+  domain       String?
+  status       LicenseStatus @default(ACTIVE)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastCheckAt  DateTime?
+  activations  Activation[]
+}
+
+model Activation {
+  id        String   @id @default(uuid())
+  licenseId String
+  ip        String?
+  domain    String
+  timestamp DateTime @default(now())
+  license   License  @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+}
+
+model AppVersion {
+  id          String   @id @default(uuid())
+  version     String   @unique
+  changelog   String?
+  downloadUrl String?
+  releasedAt  DateTime @default(now())
+}
+
+enum LicenseStatus {
+  ACTIVE
+  REVOKED
+  SUSPENDED
+}

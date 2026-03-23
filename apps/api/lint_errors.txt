@@ -1,0 +1,165 @@
+
+> api@0.0.1 lint
+> eslint "{src,apps,libs,test}/**/*.ts" --fix
+
+
+D:\my codes\saas\autowhats\apps\api\src\common\decorators\user.decorator.ts
+  5:11  error  Unsafe assignment of an `any` value            @typescript-eslint/no-unsafe-assignment
+  6:11  error  Unsafe assignment of an `any` value            @typescript-eslint/no-unsafe-assignment
+  6:26  error  Unsafe member access .user on an `any` value   @typescript-eslint/no-unsafe-member-access
+  8:5   error  Unsafe return of a value of type `any`         @typescript-eslint/no-unsafe-return
+  8:26  error  Unsafe member access [data] on an `any` value  @typescript-eslint/no-unsafe-member-access
+
+D:\my codes\saas\autowhats\apps\api\src\common\guards\jwt-auth.guard.ts
+  15:11  error    Unsafe assignment of an `any` value                                                                                                 @typescript-eslint/no-unsafe-assignment
+  16:47  warning  Unsafe argument of type `any` assigned to a parameter of type `Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>`  @typescript-eslint/no-unsafe-argument
+  23:13  error    Unsafe assignment of an `any` value                                                                                                 @typescript-eslint/no-unsafe-assignment
+  26:7   error    Unsafe assignment of an `any` value                                                                                                 @typescript-eslint/no-unsafe-assignment
+  26:15  error    Unsafe member access ['user'] on an `any` value                                                                                     @typescript-eslint/no-unsafe-member-access
+
+D:\my codes\saas\autowhats\apps\api\src\common\interceptors\transform.interceptor.ts
+  23:48  error  Unsafe assignment of an `any` value  @typescript-eslint/no-unsafe-assignment
+
+D:\my codes\saas\autowhats\apps\api\src\main.ts
+  8:1  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+D:\my codes\saas\autowhats\apps\api\src\modules\ai\ai.service.ts
+  17:9   error  Unsafe return of a value of type `Promise<any>`  @typescript-eslint/no-unsafe-return
+  37:66  error  Unsafe spread of an `any` value in an array      @typescript-eslint/no-unsafe-assignment
+  55:5   error  Unsafe return of a value of type `any`           @typescript-eslint/no-unsafe-return
+  55:26  error  Unsafe member access .choices on an `any` value  @typescript-eslint/no-unsafe-member-access
+
+D:\my codes\saas\autowhats\apps\api\src\modules\auth\auth.module.ts
+  14:7  error  Async method 'useFactory' has no 'await' expression  @typescript-eslint/require-await
+
+D:\my codes\saas\autowhats\apps\api\src\modules\auth\auth.service.ts
+  18:16  error    Unsafe assignment of an `any` value                                                               @typescript-eslint/no-unsafe-assignment
+  18:32  error    Unsafe member access .email on an `any` value                                                     @typescript-eslint/no-unsafe-member-access
+  26:7   warning  Unsafe argument of type `any` assigned to a parameter of type `string | Buffer<ArrayBufferLike>`  @typescript-eslint/no-unsafe-argument
+  26:16  error    Unsafe member access .password on an `any` value                                                  @typescript-eslint/no-unsafe-member-access
+  27:7   warning  Unsafe argument of type error typed assigned to a parameter of type `string`                      @typescript-eslint/no-unsafe-argument
+  49:16  error    Unsafe assignment of an `any` value                                                               @typescript-eslint/no-unsafe-assignment
+  49:35  error    Unsafe member access .email on an `any` value                                                     @typescript-eslint/no-unsafe-member-access
+  56:46  warning  Unsafe argument of type `any` assigned to a parameter of type `string | Buffer<ArrayBufferLike>`  @typescript-eslint/no-unsafe-argument
+  56:58  error    Unsafe member access .password on an `any` value                                                  @typescript-eslint/no-unsafe-member-access
+  60:9   error    Unsafe assignment of an `any` value                                                               @typescript-eslint/no-unsafe-assignment
+  60:28  error    Unsafe member access .email on an `any` value                                                     @typescript-eslint/no-unsafe-member-access
+  61:9   error    Unsafe assignment of an `any` value                                                               @typescript-eslint/no-unsafe-assignment
+  61:27  error    Unsafe member access .name on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  68:17  error    Unsafe assignment of an `any` value                                                               @typescript-eslint/no-unsafe-assignment
+  69:31  error    Unsafe member access .workspaceName on an `any` value                                             @typescript-eslint/no-unsafe-member-access
+  70:34  error    Unsafe member access .name on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  91:9   error    Unsafe assignment of an error typed value                                                         @typescript-eslint/no-unsafe-assignment
+  91:21  error    Unsafe call of a type that could not be resolved                                                  @typescript-eslint/no-unsafe-call
+  91:38  error    Unsafe member access .map on a type that cannot be resolved                                       @typescript-eslint/no-unsafe-member-access
+  91:49  error    Unsafe return of a value of type `any`                                                            @typescript-eslint/no-unsafe-return
+  91:51  error    Unsafe member access .workspace on an `any` value                                                 @typescript-eslint/no-unsafe-member-access
+
+D:\my codes\saas\autowhats\apps\api\src\modules\auth\jwt.strategy.ts
+  16:3   error  Async method 'validate' has no 'await' expression  @typescript-eslint/require-await
+  17:14  error  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  17:30  error  Unsafe member access .sub on an `any` value        @typescript-eslint/no-unsafe-member-access
+  17:35  error  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  17:50  error  Unsafe member access .email on an `any` value      @typescript-eslint/no-unsafe-member-access
+  17:57  error  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  17:71  error  Unsafe member access .role on an `any` value       @typescript-eslint/no-unsafe-member-access
+
+D:\my codes\saas\autowhats\apps\api\src\modules\automation\automation.service.ts
+  14:11  error  Unsafe assignment of an error typed value                                  @typescript-eslint/no-unsafe-assignment
+  14:25  error  Unsafe call of a type that could not be resolved                           @typescript-eslint/no-unsafe-call
+  14:47  error  Unsafe member access .findMany on a type that cannot be resolved           @typescript-eslint/no-unsafe-member-access
+  22:17  error  Unsafe member access .trigger_keywords on a type that cannot be resolved   @typescript-eslint/no-unsafe-member-access
+  25:29  error  Unsafe member access .trigger_keywords on a type that cannot be resolved   @typescript-eslint/no-unsafe-member-access
+  28:18  error  Unsafe member access .match_type on a type that cannot be resolved         @typescript-eslint/no-unsafe-member-access
+  38:33  error  Unsafe member access .id on a type that cannot be resolved                 @typescript-eslint/no-unsafe-member-access
+  40:9   error  Unsafe return of a value of type error                                     @typescript-eslint/no-unsafe-return
+  40:21  error  Unsafe member access .action_reply_text on a type that cannot be resolved  @typescript-eslint/no-unsafe-member-access
+
+D:\my codes\saas\autowhats\apps\api\src\modules\billing\billing.service.ts
+  7:3   error  Async method 'handleStripeWebhook' has no 'await' expression  @typescript-eslint/require-await
+  8:63  error  Unsafe member access .type on an `any` value                  @typescript-eslint/no-unsafe-member-access
+
+D:\my codes\saas\autowhats\apps\api\src\modules\campaigns\campaigns.module.ts
+  8:5   error  Unsafe call of a type that could not be resolved                       @typescript-eslint/no-unsafe-call
+  8:16  error  Unsafe member access .registerQueue on a type that cannot be resolved  @typescript-eslint/no-unsafe-member-access
+
+D:\my codes\saas\autowhats\apps\api\src\modules\campaigns\campaigns.service.ts
+  14:6   error  Unsafe call of a type that could not be resolved      @typescript-eslint/no-unsafe-call
+  21:9   error  Unsafe assignment of an `any` value                   @typescript-eslint/no-unsafe-assignment
+  21:20  error  Unsafe member access .name on an `any` value          @typescript-eslint/no-unsafe-member-access
+  22:9   error  Unsafe assignment of an `any` value                   @typescript-eslint/no-unsafe-assignment
+  22:28  error  Unsafe member access .templateName on an `any` value  @typescript-eslint/no-unsafe-member-access
+  32:5   error  'targetTag' is defined but never used                 @typescript-eslint/no-unused-vars
+  44:7   error  Unsafe assignment of an `any` value                   @typescript-eslint/no-unsafe-assignment
+
+D:\my codes\saas\autowhats\apps\api\src\modules\contacts\contacts.controller.ts
+   4:3   error  'Post' is defined but never used                                    @typescript-eslint/no-unused-vars
+  31:11  error  Unsafe assignment of an error typed value                           @typescript-eslint/no-unsafe-assignment
+  31:26  error  Unsafe call of a type that could not be resolved                    @typescript-eslint/no-unsafe-call
+  31:49  error  Unsafe member access .findUnique on a type that cannot be resolved  @typescript-eslint/no-unsafe-member-access
+
+D:\my codes\saas\autowhats\apps\api\src\modules\contacts\contacts.service.ts
+  17:19  error  Unsafe member access .OR on an `any` value  @typescript-eslint/no-unsafe-member-access
+  25:9   error  Unsafe assignment of an `any` value         @typescript-eslint/no-unsafe-assignment
+  30:30  error  Unsafe assignment of an `any` value         @typescript-eslint/no-unsafe-assignment
+
+D:\my codes\saas\autowhats\apps\api\src\modules\queue\processors\campaign.processor.ts
+   6:2  error  Unsafe call of a type that could not be resolved  @typescript-eslint/no-unsafe-call
+  11:3  error  Async method 'process' has no 'await' expression  @typescript-eslint/require-await
+
+D:\my codes\saas\autowhats\apps\api\src\modules\queue\processors\message.processor.ts
+   6:2  error  Unsafe call of a type that could not be resolved            @typescript-eslint/no-unsafe-call
+  26:3  error  Async method 'handleSendMessage' has no 'await' expression  @typescript-eslint/require-await
+  34:3  error  Async method 'handleWebhook' has no 'await' expression      @typescript-eslint/require-await
+
+D:\my codes\saas\autowhats\apps\api\src\modules\queue\queue.module.ts
+   8:5   error  Unsafe call of a type that could not be resolved                       @typescript-eslint/no-unsafe-call
+   8:16  error  Unsafe member access .registerQueue on a type that cannot be resolved  @typescript-eslint/no-unsafe-member-access
+  11:5   error  Unsafe call of a type that could not be resolved                       @typescript-eslint/no-unsafe-call
+  11:16  error  Unsafe member access .registerQueue on a type that cannot be resolved  @typescript-eslint/no-unsafe-member-access
+
+D:\my codes\saas\autowhats\apps\api\src\modules\users\users.controller.ts
+  18:52  warning  Unsafe argument of type `any` assigned to a parameter of type `{ name?: string | undefined; }`  @typescript-eslint/no-unsafe-argument
+
+D:\my codes\saas\autowhats\apps\api\src\modules\webhooks\webhooks.module.ts
+  8:5   error  Unsafe call of a type that could not be resolved                       @typescript-eslint/no-unsafe-call
+  8:16  error  Unsafe member access .registerQueue on a type that cannot be resolved  @typescript-eslint/no-unsafe-member-access
+
+D:\my codes\saas\autowhats\apps\api\src\modules\webhooks\webhooks.service.ts
+  11:6   error  Unsafe call of a type that could not be resolved  @typescript-eslint/no-unsafe-call
+  16:17  error  Unsafe member access .object on an `any` value    @typescript-eslint/no-unsafe-member-access
+  28:7   error  Unsafe assignment of an `any` value               @typescript-eslint/no-unsafe-assignment
+  35:43  error  'signature' is defined but never used             @typescript-eslint/no-unused-vars
+  40:7   error  Unsafe assignment of an `any` value               @typescript-eslint/no-unsafe-assignment
+
+D:\my codes\saas\autowhats\apps\api\src\modules\whatsapp\whatsapp.service.ts
+  33:9   error  Unsafe assignment of an `any` value               @typescript-eslint/no-unsafe-assignment
+  33:34  error  Unsafe member access .messages on an `any` value  @typescript-eslint/no-unsafe-member-access
+  37:51  error  Unsafe member access .response on an `any` value  @typescript-eslint/no-unsafe-member-access
+  37:91  error  Unsafe member access .message on an `any` value   @typescript-eslint/no-unsafe-member-access
+  74:9   error  Unsafe assignment of an `any` value               @typescript-eslint/no-unsafe-assignment
+  74:34  error  Unsafe member access .messages on an `any` value  @typescript-eslint/no-unsafe-member-access
+  78:52  error  Unsafe member access .response on an `any` value  @typescript-eslint/no-unsafe-member-access
+  78:92  error  Unsafe member access .message on an `any` value   @typescript-eslint/no-unsafe-member-access
+
+D:\my codes\saas\autowhats\apps\api\src\modules\workspaces\workspaces.controller.ts
+  13:5   error    Unsafe return of a value of type `Promise<any>`                                                                          @typescript-eslint/no-unsafe-return
+  18:59  warning  Unsafe argument of type `any` assigned to a parameter of type `{ name: string; company_website?: string | undefined; }`  @typescript-eslint/no-unsafe-argument
+
+D:\my codes\saas\autowhats\apps\api\src\modules\workspaces\workspaces.service.ts
+   9:11  error  Unsafe assignment of an error typed value                           @typescript-eslint/no-unsafe-assignment
+   9:31  error  Unsafe call of a type that could not be resolved                    @typescript-eslint/no-unsafe-call
+   9:54  error  Unsafe member access .findMany on a type that cannot be resolved    @typescript-eslint/no-unsafe-member-access
+  13:5   error  Unsafe return of a value of type error                              @typescript-eslint/no-unsafe-return
+  13:12  error  Unsafe call of a type that could not be resolved                    @typescript-eslint/no-unsafe-call
+  13:24  error  Unsafe member access .map on a type that cannot be resolved         @typescript-eslint/no-unsafe-member-access
+  13:36  error  Unsafe return of a value of type `any`                              @typescript-eslint/no-unsafe-return
+  14:12  error  Unsafe member access .workspace on an `any` value                   @typescript-eslint/no-unsafe-member-access
+  15:7   error  Unsafe assignment of an `any` value                                 @typescript-eslint/no-unsafe-assignment
+  15:15  error  Unsafe member access .role on an `any` value                        @typescript-eslint/no-unsafe-member-access
+  38:11  error  Unsafe assignment of an error typed value                           @typescript-eslint/no-unsafe-assignment
+  38:30  error  Unsafe call of a type that could not be resolved                    @typescript-eslint/no-unsafe-call
+  38:53  error  Unsafe member access .findUnique on a type that cannot be resolved  @typescript-eslint/no-unsafe-member-access
+
+✖ 112 problems (105 errors, 7 warnings)
+
