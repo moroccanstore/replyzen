@@ -103,7 +103,11 @@ export class ConversationsService {
     return conversation;
   }
 
-  async assignToAgent(workspaceId: string, conversationId: string, agentId: string) {
+  async assignToAgent(
+    workspaceId: string,
+    conversationId: string,
+    agentId: string,
+  ) {
     return this.prisma.conversation.update({
       where: { id: conversationId, workspaceId },
       data: {

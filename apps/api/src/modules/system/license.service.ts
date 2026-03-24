@@ -1,102 +1,324 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../prisma/prisma.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import axios from 'axios';
-import * as fs from 'fs';
-import * as path from 'path';
 
-interface LicenseData {
-  licenseKey: string;
-  status: string;
-  message?: string;
+/**
+ * ELITE: Type-safe configuration shape
+ */
+export interface RemoteConfig {
+  system: {
+    enabled: boolean;
+    maintenance?: boolean;
+  };
+  features: Record<string, boolean>;
+  limits?: Record<string, number>;
+  metadata?: Record<string, any>;
 }
 
 @Injectable()
-export class LicenseService implements OnModuleInit {
+export class LicenseService implements OnApplicationBootstrap {
   private readonly logger = new Logger(LicenseService.name);
-  private readonly licenseFilePath = path.join(process.cwd(), 'license.lock');
-  private isValid = true;
+  private readonly apiUrl = 'https://licence.daki.pro/api';
 
-  constructor(private readonly configService: ConfigService) {}
+  /**
+   * PERFORMANCE: In-memory cache for configuration
+   */
+  private cachedConfig: RemoteConfig | null = null;
 
-  async onModuleInit() {
-    await this.checkLicense();
-    // Run validation every 12 hours
-    setInterval(() => {
-      this.checkLicense().catch((err) => {
-        this.logger.error(`Scheduled license check failed: ${err.message}`);
-      });
-    }, 12 * 60 * 60 * 1000);
+  /**
+   * STABILITY: Safe fallback config
+   */
+  private readonly DEFAULT_CONFIG: RemoteConfig = {
+    system: { enabled: true },
+    features: { ai: true },
+    limits: {},
+  };
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  async onApplicationBootstrap() {
+    this.logger.log('Checking license on startup...');
+    try {
+      // Warm up cache
+      await this.loadConfigIntoMemory();
+
+      const license = await this.prisma.license.findFirst();
+
+      /**
+       * ELITE: Strict Startup Validation
+       */
+      if (!license || !license.config) {
+        const errorMsg = '[CRITICAL] System not initialized. Please run the installer or activate your license.';
+        this.logger.error(errorMsg);
+        // In production, we might want to throw this to prevent app start
+        // throw new Error(errorMsg);
+      }
+
+      await this.validate();
+    } catch (error: any) {
+      this.logger.error(`[LICENSE] Startup check failed: ${error.message}`);
+    }
   }
 
   /**
-   * Checks the local license against the remote server.
+   * Loads config from DB into cache with fallback
    */
-  async checkLicense() {
+  private async loadConfigIntoMemory() {
     try {
-      if (!fs.existsSync(this.licenseFilePath)) {
-        this.isValid = false;
-        return;
-      }
-
-      const fileContent = fs.readFileSync(this.licenseFilePath, 'utf8');
-      const licenseData = JSON.parse(fileContent) as LicenseData;
-      const licenseServerUrl = this.configService.get<string>('LICENSE_SERVER_URL') || 'http://localhost:3001';
-      const domain = this.configService.get<string>('APP_DOMAIN') || 'localhost';
-
-      const response = await axios.post<{ status: string }>(
-        `${licenseServerUrl}/license/validate`,
-        {
-          licenseKey: licenseData.licenseKey,
-          domain,
-        },
-        { timeout: 10000 },
-      );
-
-      this.isValid = response.data.status === 'valid';
-
-      if (!this.isValid) {
-        this.logger.error('CRITICAL: License is invalid or revoked. System features blocked.');
+      const license = await this.prisma.license.findFirst();
+      const dbConfig = license?.config as unknown as RemoteConfig;
+      
+      if (this.validateConfig(dbConfig)) {
+        this.cachedConfig = dbConfig;
       } else {
-        this.logger.log('License validated successfully.');
+        this.cachedConfig = this.DEFAULT_CONFIG;
+        this.logger.warn('[CONFIG] Using default fallback config (DB data invalid or missing)');
       }
-    } catch (error: any) {
-      this.logger.error(`License validation failed: ${error.message}.`);
-      // For production hardening, we only allow offline usage if we have a valid cache,
-      // but here we'll default to invalid if the server check fails to prevent spoofing.
-      this.isValid = false;
+    } catch (e) {
+      this.cachedConfig = this.DEFAULT_CONFIG;
     }
   }
 
   /**
-   * Activates a new license via purchase code.
+   * VALIDATION: Ensure config structure is valid
    */
-  async activate(purchaseCode: string) {
+  private validateConfig(config: any): config is RemoteConfig {
+    if (!config || typeof config !== 'object') return false;
+    // Critical fields required for system stability
+    if (!config.system) return false;
+    if (!config.features) return false;
+    return true;
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async handleCron() {
+    this.logger.log('Running daily license validation...');
+    await this.validate();
+  }
+
+  async activate(key: string, domain?: string) {
+    const activeDomain = domain || this.getCurrentDomain();
     try {
-      const licenseServerUrl = this.configService.get<string>('LICENSE_SERVER_URL') || 'http://localhost:3001';
-      const domain = this.configService.get<string>('APP_DOMAIN') || 'localhost';
+      const response = await axios.post(`${this.apiUrl}/activate`, {
+        key,
+        domain: activeDomain,
+        product: 'autowhats',
+      });
 
-      const response = await axios.post<LicenseData>(
-        `${licenseServerUrl}/license/activate`,
-        {
-          purchaseCode,
-          domain,
+      const { token, config, configHash } = response.data;
+      const normalizedDomain = activeDomain.toLowerCase();
+
+      // Validate new config before storing
+      const finalConfig = this.validateConfig(config) ? config : (await this.getAllConfig());
+
+      await this.prisma.license.upsert({
+        where: { key },
+        update: {
+          token,
+          domain: normalizedDomain,
+          lastValidatedAt: new Date(),
+          status: 'VALID',
+          graceExpiresAt: null,
+          config: finalConfig as any,
+          configHash: configHash || null,
+          supportEmail: response.data.support?.email,
+          supportWhatsapp: response.data.support?.whatsapp,
         },
-        { timeout: 15000 },
-      );
+        create: {
+          key,
+          token,
+          domain: normalizedDomain,
+          lastValidatedAt: new Date(),
+          status: 'VALID',
+          config: finalConfig as any,
+          configHash: configHash || null,
+          supportEmail: response.data.support?.email,
+          supportWhatsapp: response.data.support?.whatsapp,
+        },
+      });
 
-      if (response.data.status === 'success') {
-        fs.writeFileSync(this.licenseFilePath, JSON.stringify(response.data, null, 2));
-        this.isValid = true;
-        return { success: true };
-      }
-      return { success: false, message: response.data.message };
+      this.cachedConfig = finalConfig;
+      this.logger.log('[LICENSE] Activated');
+      this.logger.log('[CONFIG] Updated');
+      return { success: true };
     } catch (error: any) {
-      const message = error.response?.data?.message || (error as Error).message;
-      return { success: false, message };
+      this.logger.error(`[LICENSE] Activation failed: ${error.message}`);
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || (error as Error).message,
+      };
     }
   }
 
-  isLicenseValid(): boolean {
-    return this.isValid;
+  async validate() {
+    const license = await this.prisma.license.findFirst();
+    if (!license) return;
+
+    try {
+      const response = await axios.post(`${this.apiUrl}/validate-key`, {
+        token: license.token,
+        domain: license.domain,
+        // Send current hash to server to check override
+        currentHash: (license as any).configHash,
+      });
+
+      if (response.status === 200) {
+        const { config, configHash } = response.data;
+        
+        /**
+         * ELITE: Optimized updates via Hash Check
+         */
+        const hasChanges = configHash && configHash !== (license as any).configHash;
+        const valid = this.validateConfig(config);
+
+        if (!hasChanges) {
+          this.logger.log('[LICENSE] Validation success (No config changes)');
+          // Only update transit status fields, skip config/hash rewrite
+          await this.prisma.license.update({
+            where: { id: license.id },
+            data: {
+              lastValidatedAt: new Date(),
+              status: 'VALID',
+              graceExpiresAt: null,
+            },
+          });
+          return;
+        }
+
+        await this.prisma.license.update({
+          where: { id: license.id },
+          data: {
+            lastValidatedAt: new Date(),
+            status: 'VALID',
+            graceExpiresAt: null,
+            config: valid ? config : license.config,
+            configHash: configHash || (license as any).configHash,
+            supportEmail: response.data.support?.email,
+            supportWhatsapp: response.data.support?.whatsapp,
+          },
+        });
+
+        if (valid) {
+          this.cachedConfig = config;
+          this.logger.log('[CONFIG] Updated (Hash changed)');
+        }
+
+        this.logger.log('[LICENSE] Validation success');
+      }
+    } catch (error: any) {
+      const status = error.response?.status;
+
+      if (status === 401) {
+        this.logger.warn(
+          '[LICENSE] Token invalid, attempting re-activation...',
+        );
+        const result = await this.activate(license.key, license.domain);
+        if (result.success) {
+          this.logger.log('[LICENSE] Re-activated');
+        } else {
+          this.logger.error('[LICENSE] Re-activation failed');
+        }
+      } else if (status === 403) {
+        await this.prisma.license.update({
+          where: { id: license.id },
+          data: { status: 'BLOCKED' },
+        });
+        this.logger.error('[LICENSE] System blocked (Remote 403)');
+      } else {
+        // Network or Server error
+        this.logger.warn(
+          '[LICENSE] Validation failed -> entering/staying in grace mode (Server unreachable)',
+        );
+      }
+    }
+  }
+
+  private getCurrentDomain(): string {
+    const appUrl = this.configService.get<string>('APP_URL') || 'localhost';
+    try {
+      const url = new URL(appUrl);
+      return url.hostname.toLowerCase();
+    } catch {
+      return appUrl.toLowerCase();
+    }
+  }
+
+  async getStatus(): Promise<string> {
+    try {
+      const license = await this.prisma.license.findFirst();
+      if (!license) return 'MISSING';
+      
+      if (license.status === 'BLOCKED') return 'BLOCKED';
+
+      // 48h Grace Mode Logic
+      const now = Date.now();
+      const lastValidated = license.lastValidatedAt.getTime();
+      const diffHours = (now - lastValidated) / (1000 * 60 * 60);
+
+      if (diffHours > 48) {
+        if (license.status !== 'BLOCKED') {
+          this.logger.error(`[LICENSE] Grace period exceeded (48h). System blocked.`);
+          await this.prisma.license.update({
+            where: { id: license.id },
+            data: { status: 'BLOCKED' },
+          });
+        }
+        return 'BLOCKED';
+      }
+
+      if (diffHours > 24) {
+        this.logger.warn(`[LICENSE] Grace mode active (${Math.round(diffHours)}h since last validation)`);
+        return 'GRACE';
+      }
+      
+      return license.status;
+    } catch (e: any) {
+      this.logger.error(`Failed to get license status: ${e.message}`);
+      return 'VALID';
+    }
+  }
+
+  async isLicenseValid(): Promise<boolean> {
+    const status = await this.getStatus();
+    return status === 'VALID' || status === 'GRACE';
+  }
+
+  /**
+   * PERFORMANCE: Get configuration from in-memory cache
+   */
+  async getConfig<T>(key: string, defaultValue?: T): Promise<T | undefined> {
+    if (!this.cachedConfig) {
+      await this.loadConfigIntoMemory();
+    }
+    const val = (this.cachedConfig as any)[key];
+    return val !== undefined ? val : defaultValue;
+  }
+
+  async getAllConfig(): Promise<any> {
+    if (!this.cachedConfig) {
+      await this.loadConfigIntoMemory();
+    }
+    return this.cachedConfig;
+  }
+
+  async getSupportConfig() {
+    try {
+      const license = await this.prisma.license.findFirst();
+      return {
+        email: license?.supportEmail || 'contact@daki.pro',
+        whatsapp: license?.supportWhatsapp || 'Coming soon',
+      };
+    } catch (e) {
+      return {
+        email: 'contact@daki.pro',
+        whatsapp: 'Coming soon',
+      };
+    }
   }
 }

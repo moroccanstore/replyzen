@@ -42,7 +42,7 @@ export class CampaignsService {
 
     // Switch status
     await this.prisma.campaign.update({
-      where: { 
+      where: {
         id: campaignId,
         workspaceId, // CRITICAL: Ensure campaign belongs to workspace
       },
@@ -60,8 +60,30 @@ export class CampaignsService {
       campaignId,
       workspaceId,
       recipientIds: contactIds,
-    } satisfies CampaignBatchJobData);
+    } satisfies CampaignBatchJobData, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
+      removeOnComplete: true,
+    });
 
     return { success: true, queuedRecipients: contactIds.length };
+  }
+
+  async findAll(workspaceId: string) {
+    return this.prisma.campaign.findMany({
+      where: { workspaceId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        _count: {
+          select: { recipients: true },
+        },
+      },
+    });
+  }
+
+  async remove(workspaceId: string, campaignId: string) {
+    return this.prisma.campaign.delete({
+      where: { id: campaignId, workspaceId },
+    });
   }
 }

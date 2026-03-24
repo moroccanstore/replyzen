@@ -38,7 +38,9 @@ export class BillingService {
     const workspaceId = subscription.metadata?.workspaceId;
 
     if (!workspaceId) {
-      this.logger.error(`No workspaceId found in metadata for subscription ${stripeId}`);
+      this.logger.error(
+        `No workspaceId found in metadata for subscription ${stripeId}`,
+      );
       return;
     }
 
@@ -74,12 +76,14 @@ export class BillingService {
       },
     });
 
-    this.logger.log(`Synced subscription ${stripeId} for workspace ${workspaceId} (Plan: ${plan})`);
+    this.logger.log(
+      `Synced subscription ${stripeId} for workspace ${workspaceId} (Plan: ${plan})`,
+    );
   }
 
   private async cancelSubscription(subscription: any) {
     const stripeId = subscription.id;
-    
+
     const sub = await this.prisma.subscription.update({
       where: { stripeId },
       data: { status: 'canceled' },
@@ -96,7 +100,9 @@ export class BillingService {
       },
     });
 
-    this.logger.log(`Canceled subscription ${stripeId} and reverted workspace ${sub.workspaceId} to FREE`);
+    this.logger.log(
+      `Canceled subscription ${stripeId} and reverted workspace ${sub.workspaceId} to FREE`,
+    );
   }
 
   private mapPriceToPlan(priceId: string): Plan {
@@ -111,9 +117,15 @@ export class BillingService {
   private getPlanLimits(plan: Plan) {
     switch (plan) {
       case Plan.ENTERPRISE:
-        return { aiWeeklyLimit: 10000, mediaMonthlyLimit: 10 * 1024 * 1024 * 1024 }; // 10GB
+        return {
+          aiWeeklyLimit: 10000,
+          mediaMonthlyLimit: 10 * 1024 * 1024 * 1024,
+        }; // 10GB
       case Plan.PRO:
-        return { aiWeeklyLimit: 2000, mediaMonthlyLimit: 2 * 1024 * 1024 * 1024 }; // 2GB
+        return {
+          aiWeeklyLimit: 2000,
+          mediaMonthlyLimit: 2 * 1024 * 1024 * 1024,
+        }; // 2GB
       case Plan.STARTER:
         return { aiWeeklyLimit: 500, mediaMonthlyLimit: 500 * 1024 * 1024 }; // 500MB
       case Plan.FREE:

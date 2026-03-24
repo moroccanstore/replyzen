@@ -17,6 +17,6 @@ export interface AIMessage {
 export interface IAIProvider {
   generateResponse(
     messages: AIMessage[],
-    settings: { model?: string },
+    settings: { model?: string; temperature?: number; maxTokens?: number },
   ): Promise<AIResponse>;
 }

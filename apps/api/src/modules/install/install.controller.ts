@@ -12,70 +12,61 @@ import { InstallService } from './install.service';
 export class InstallController {
   constructor(private readonly installService: InstallService) {}
 
-  @Get('status')
-  async getStatus() {
-    return { installed: await this.installService.isInstalled() };
+  @Get('check')
+  async systemCheck() {
+    await this.ensureNotInstalled();
+    return this.installService.checkSystem();
   }
 
-  @Post('check')
-  async check(
-    @Body() body: { dbUrl: string; redisHost: string; redisPort: number },
+  @Post()
+  async install(
+    @Body()
+    body: {
+      dbUrl: string;
+      redisHost: string;
+      redisPort: number;
+      appUrl: string;
+      adminEmail: string;
+      adminPass: string;
+      adminName: string;
+      licenseKey: string;
+    },
   ) {
     await this.ensureNotInstalled();
-    const dbCheck = await this.installService.checkDatabase(body.dbUrl);
-    const redisCheck = await this.installService.checkRedis(
-      body.redisHost,
-      body.redisPort,
+
+    if (!body.licenseKey) {
+      throw new BadRequestException('License key is required');
+    }
+
+    // STEP 2 — WRITE .env FILE
+    await this.installService.writeEnvTemp({
+      DATABASE_URL: body.dbUrl,
+      REDIS_HOST: body.redisHost,
+      REDIS_PORT: String(body.redisPort),
+      APP_URL: body.appUrl,
+      JWT_SECRET: `gen_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+    });
+
+    // STEP 3 — RUN SETUP COMMANDS
+    const setupResult = await this.installService.runSetupCommands();
+    if (!setupResult.success) {
+      throw new BadRequestException(setupResult.output);
+    }
+
+    // STEP 4, 5, 6 — ADMIN & WORKSPACES
+    await this.installService.createAdminAndWorkspaces(
+      body.adminEmail,
+      body.adminPass,
+      body.adminName,
     );
 
-    return {
-      database: dbCheck,
-      redis: redisCheck,
-      system: await this.installService.checkSystem(),
-    };
-  }
-
-  @Post('configure')
-  async configure(@Body() config: Record<string, string>) {
-    await this.ensureNotInstalled();
-    await this.installService.writeEnvTemp(config);
-    return { success: true, message: 'Temporary configuration saved' };
-  }
-
-  @Post('validate')
-  async validate() {
-    await this.ensureNotInstalled();
-    const result = await this.installService.validateConfig();
-    if (!result.success) {
-      throw new BadRequestException(result.message);
-    }
-    return result;
-  }
-
-  @Post('migrate')
-  async migrate() {
-    await this.ensureNotInstalled();
-    const result = await this.installService.runMigrations();
-    if (!result.success) {
-      throw new BadRequestException(result.output);
-    }
-    return result;
-  }
-
-  @Post('admin')
-  async createAdmin(
-    @Body() body: { email: string; password: string; name: string },
-  ) {
-    await this.ensureNotInstalled();
-    await this.installService.createAdmin(body.email, body.password, body.name);
-    return { success: true };
-  }
-
-  @Post('finish')
-  async finish() {
-    await this.ensureNotInstalled();
+    // STEP 7 — LOCK INSTALLER
     await this.installService.finalizeInstall();
-    return { success: true, message: 'Application successfully installed' };
+
+    return {
+      success: true,
+      message: 'AutoWhats successfully installed!',
+    };
   }
 
   private async ensureNotInstalled() {

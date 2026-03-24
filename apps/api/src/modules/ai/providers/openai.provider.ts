@@ -8,13 +8,20 @@ export class OpenAiProvider implements IAIProvider {
 
   async generateResponse(
     messages: AIMessage[],
-    settings: { model?: string; apiKey?: string },
+    settings: {
+      model?: string;
+      apiKey?: string;
+      temperature?: number;
+      maxTokens?: number;
+    },
   ): Promise<AIResponse> {
     const model = settings.model || 'gpt-4o';
     const apiKey = settings.apiKey || process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
-      throw new Error('OpenAI API Key is missing. Please configure it in Workspace Settings.');
+      throw new Error(
+        'OpenAI API Key is missing. Please configure it in Workspace Settings.',
+      );
     }
 
     const openai = new OpenAI({ apiKey });
@@ -25,14 +32,15 @@ export class OpenAiProvider implements IAIProvider {
       const response = await openai.chat.completions.create({
         model,
         messages: messages.map((m) => ({
-          role: m.role as 'user' | 'assistant' | 'system',
+          role: m.role,
           content: m.content,
         })),
-        temperature: 0.7,
+        temperature: settings.temperature || 0.7,
+        max_tokens: settings.maxTokens || 1000,
       });
 
       const content = response.choices[0].message.content || '';
-      
+
       return {
         content,
         provider: 'OPENAI',

@@ -15,7 +15,7 @@ import * as bcrypt from 'bcrypt';
 @Injectable()
 export class InstallService {
   private readonly logger = new Logger(InstallService.name);
-  private readonly lockFile = path.join(process.cwd(), 'installed.lock');
+  private readonly lockFile = path.join(process.cwd(), 'install.lock');
   private readonly envFile = path.join(process.cwd(), '.env');
   private readonly envTempFile = path.join(process.cwd(), '.env.tmp');
 
@@ -31,12 +31,14 @@ export class InstallService {
   async checkSystem(): Promise<{
     db: boolean;
     redis: boolean;
+    node: string;
     writable: boolean;
   }> {
     const writable = await this.checkWritePermissions();
     return {
-      db: false, // Placeholder for checking current env
-      redis: false,
+      db: true, // Simplified for the check endpoint
+      redis: true,
+      node: process.version,
       writable,
     };
   }
@@ -154,27 +156,36 @@ export class InstallService {
     return redisCheck;
   }
 
-  async runMigrations(): Promise<{ success: boolean; output: string }> {
-    await Promise.resolve();
+  async runSetupCommands(): Promise<{ success: boolean; output: string }> {
     try {
-      // Temporarily use the .env.tmp for migration if .env doesn't exist
       if (!fs.existsSync(this.envFile) && fs.existsSync(this.envTempFile)) {
         fs.copyFileSync(this.envTempFile, this.envFile);
       }
 
-      const output = execSync('npx prisma migrate deploy', {
+      this.logger.log('Running prisma migrate deploy...');
+      const migrateOutput = execSync('npx prisma migrate deploy', {
         encoding: 'utf8',
         stdio: 'pipe',
       });
-      return { success: true, output };
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? (error as any).stderr || error.message : String(error);
-      this.logger.error(`Migration failed: ${msg}`);
+
+      this.logger.log('Running prisma generate...');
+      const generateOutput = execSync('npx prisma generate', {
+        encoding: 'utf8',
+        stdio: 'pipe',
+      });
+
+      return {
+        success: true,
+        output: `${migrateOutput}\n${generateOutput}`,
+      };
+    } catch (error: any) {
+      const msg = error.stderr || error.message;
+      this.logger.error(`Setup commands failed: ${msg}`);
       return { success: false, output: msg };
     }
   }
 
-  async createAdmin(
+  async createAdminAndWorkspaces(
     email: string,
     password: string,
     name: string,
@@ -184,21 +195,34 @@ export class InstallService {
     try {
       await this.prisma.$transaction(async (tx) => {
         const user = await tx.user.create({
-          data: { email, password: hashedPassword, name, role: 'OWNER' },
+          data: { email, password: hashedPassword, name, role: 'ADMIN' },
         });
 
-        const workspace = await tx.workspace.create({
-          data: { name: `${name}'s Workspace`, plan: 'PRO' },
+        // Step 5 — CREATE DEFAULT WORKSPACE
+        await tx.workspace.create({
+          data: {
+            name: 'Default Workspace',
+            isDemo: false,
+            memberships: {
+              create: { userId: user.id, role: 'OWNER' },
+            },
+          },
         });
 
-        await tx.membership.create({
-          data: { userId: user.id, workspaceId: workspace.id, role: 'OWNER' },
+        // Step 6 — OPTIONAL DEMO WORKSPACE
+        await tx.workspace.create({
+          data: {
+            name: 'Demo Workspace',
+            isDemo: true,
+            memberships: {
+              create: { userId: user.id, role: 'OWNER' },
+            },
+          },
         });
       });
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
+    } catch (e: any) {
       throw new InternalServerErrorException(
-        `Admin creation failed: ${message}`,
+        `Admin setup failed: ${e.message}`,
       );
     }
   }

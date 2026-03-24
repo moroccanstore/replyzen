@@ -14,7 +14,7 @@ export class TenantGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
-    
+
     // Extract workspaceId from multiple possible locations
     const workspaceId =
       request.query.workspaceId ||
@@ -27,7 +27,9 @@ export class TenantGuard implements CanActivate {
     }
 
     if (!workspaceId) {
-      throw new BadRequestException('workspaceId is required for this resource');
+      throw new BadRequestException(
+        'workspaceId is required for this resource',
+      );
     }
 
     const membership = await this.prisma.membership.findFirst({

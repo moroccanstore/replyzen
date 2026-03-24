@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { ContactsService } from './contacts.service';
@@ -7,7 +15,7 @@ import { ContactsService } from './contacts.service';
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class ContactsController {
   constructor(private readonly contactsService: ContactsService) {}
-  
+
   @Get()
   async list(
     @Query('workspaceId') workspaceId: string,
@@ -34,7 +42,13 @@ export class ContactsController {
 
   @Post()
   async create(
-    @Body() data: { name?: string; phone: string; customFields?: any; workspaceId: string },
+    @Body()
+    data: {
+      name?: string;
+      phone: string;
+      customFields?: any;
+      workspaceId: string;
+    },
   ) {
     return this.contactsService.getOrAddContact(
       data.workspaceId,

@@ -21,7 +21,9 @@ export class InstallGuard implements CanActivate {
     if (!isInstalled && !isInstallRoute) {
       // In a real API, we throw an error that the frontend handles by redirecting to /install
       // Returning false would result in ForbiddenException (403)
-      throw new ForbiddenException('Application not installed. Please visit /install.');
+      throw new ForbiddenException(
+        'Application not installed. Please visit /install.',
+      );
     }
 
     // 2. If already installed, disable /install/* routes (security hardening)

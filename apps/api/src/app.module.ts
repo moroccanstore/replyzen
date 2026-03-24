@@ -25,15 +25,18 @@ import { InstallModule } from './modules/install/install.module';
 import { SystemModule } from './modules/system/system.module';
 import { SocketModule } from './modules/socket/socket.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
     PrismaModule,
     ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 100, // 100 requests per minute per IP
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10, // Max 10 requests per minute per IP
+      },
+    ]),
     QueueModule,
     AuthModule,
     UsersModule,
@@ -52,6 +55,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     InstallModule,
     SystemModule,
     SocketModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [

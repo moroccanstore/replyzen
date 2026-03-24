@@ -18,11 +18,24 @@ export class CampaignsController {
     return this.campaignsService.createCampaign(workspaceId, data);
   }
 
+  @Get()
+  async findAll(@Param('workspaceId') workspaceId: string) {
+    return this.campaignsService.findAll(workspaceId);
+  }
+
   @Post(':id/launch')
   async launchCampaign(
     @Param('workspaceId') workspaceId: string,
     @Param('id') campaignId: string,
   ) {
     return this.campaignsService.launchCampaign(workspaceId, campaignId);
+  }
+
+  @Delete(':id')
+  async remove(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') campaignId: string,
+  ) {
+    return this.campaignsService.remove(workspaceId, campaignId);
   }
 }

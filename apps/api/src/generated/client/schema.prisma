@@ -1,0 +1,328 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  name          String
+  role          Role           @default(OWNER)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  conversations Conversation[]
+  memberships   Membership[]
+}
+
+model Workspace {
+  id                String         @id @default(uuid())
+  name              String
+  plan              Plan           @default(FREE)
+  whatsappPhoneId   String?
+  whatsappAccountId String?
+  metaToken         String?
+  installedAt       DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  aiWeeklyLimit     Int            @default(100)
+  aiUsageCount      Int            @default(0)
+  lastUsageReset    DateTime       @default(now())
+  mediaMonthlyLimit Int            @default(104857600)
+  mediaUsageSize    Int            @default(0)
+  lastMediaReset    DateTime       @default(now())
+  openaiApiKey      String?
+  aiSettings        AiSetting?
+  apiKeys           ApiKey[]
+  automations       Automation[]
+  campaigns         Campaign[]
+  contacts          Contact[]
+  conversations     Conversation[]
+  memberships       Membership[]
+  subscriptions     Subscription[]
+  usageLogs         UsageLog[]
+  orders            Order[]
+}
+
+model Membership {
+  id          String    @id @default(uuid())
+  userId      String
+  workspaceId String
+  role        Role      @default(AGENT)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+}
+
+model Contact {
+  id                String              @id @default(uuid())
+  workspaceId       String
+  phone             String
+  name              String?
+  tags              String[]
+  customFields      Json?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  campaignRecipient CampaignRecipient[]
+  workspace         Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations     Conversation[]
+  orders            Order[]
+
+  @@unique([workspaceId, phone])
+  @@index([workspaceId])
+  @@index([createdAt])
+}
+
+model Conversation {
+  id              String             @id @default(uuid())
+  workspaceId     String
+  contactId       String
+  status          ConversationStatus @default(BOT_ACTIVE)
+  assignedAgentId String?
+  lastMessageAt   DateTime           @default(now())
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  assignedAgent   User?              @relation(fields: [assignedAgentId], references: [id])
+  contact         Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  workspace       Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages        Message[]
+
+  @@unique([workspaceId, contactId])
+  @@index([workspaceId])
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id             String           @id @default(uuid())
+  conversationId String
+  whatsappMsgId  String?          @unique
+  direction      MessageDirection
+  type           String           @default("TEXT")
+  content        String?
+  mediaUrl       String?
+  mimeType       String?
+  status         MessageStatus    @default(SENT)
+  timestamp      DateTime         @default(now())
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([whatsappMsgId])
+  @@index([timestamp])
+}
+
+model Automation {
+  id          String         @id @default(uuid())
+  workspaceId String
+  keywords    String[]
+  reply       String
+  type        AutomationType @default(RULE)
+  priority    Int            @default(0)
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model Campaign {
+  id              String              @id @default(uuid())
+  workspaceId     String
+  name            String
+  status          CampaignStatus      @default(DRAFT)
+  scheduledAt     DateTime?
+  audienceFilter  Json?
+  messageTemplate String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  workspace       Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  recipients      CampaignRecipient[]
+
+  @@index([workspaceId])
+  @@index([createdAt])
+}
+
+model CampaignRecipient {
+  id         String                  @id @default(uuid())
+  campaignId String
+  contactId  String
+  status     CampaignRecipientStatus @default(PENDING)
+  error      String?
+  campaign   Campaign                @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact    Contact                 @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, contactId])
+}
+
+model AiSetting {
+  id          String     @id @default(uuid())
+  workspaceId String     @unique
+  provider    AIProvider @default(OPENAI)
+  model       String     @default("gpt-4oti")
+  apiKeyEnc   String?
+  temperature Float      @default(0.7)
+  threshold   Float      @default(0.7)
+  maxTokens   Int        @default(1000)
+  fallbackMsg String?
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  workspaceId String
+  keyHash     String    @unique
+  label       String
+  permissions String[]  @default([])
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model Subscription {
+  id          String    @id @default(uuid())
+  workspaceId String
+  stripeId    String    @unique
+  plan        Plan
+  status      String
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model UsageLog {
+  id          String    @id @default(uuid())
+  workspaceId String
+  type        String
+  count       Int       @default(1)
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, type])
+}
+
+model WebhookLog {
+  id        String   @id @default(uuid())
+  eventId   String   @unique
+  provider  String
+  createdAt DateTime @default(now())
+
+  @@index([eventId])
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  workspaceId String
+  contactId   String
+  product     String
+  price       Float       @default(0)
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact     Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([contactId])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  AGENT
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum ConversationStatus {
+  BOT_ACTIVE
+  OPEN
+  CLOSED
+  HUMAN_REQUIRED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum AutomationType {
+  RULE
+  AI
+  HANDOFF
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum CampaignRecipientStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum AIProvider {
+  OPENAI
+  GEMINI
+  CLAUDE
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+}
+
+model FailedJob {
+  id          String          @id @default(uuid())
+  queueName   String
+  jobId       String
+  data        Json
+  reason      String
+  stack       String?
+  status      FailedJobStatus @default(PENDING)
+  requeuedAt  DateTime?
+  resolvedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  workspaceId String?
+
+  @@index([queueName])
+  @@index([createdAt])
+  @@index([workspaceId])
+}
+
+enum FailedJobStatus {
+  PENDING
+  REQUEUED
+  RESOLVED
+  DISCARDED
+}

@@ -1,7 +1,16 @@
-import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
+import {
+  Processor,
+  WorkerHost,
+  InjectQueue,
+  OnWorkerEvent,
+} from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
-import { MessageDirection, MessageStatus, ConversationStatus } from '@prisma/client';
+import {
+  MessageDirection,
+  MessageStatus,
+  ConversationStatus,
+} from '@prisma/client';
 import { SocketGateway } from '../../socket/socket.gateway';
 import { WhatsappService } from '../../whatsapp/whatsapp.service';
 import { AiService } from '../../ai/ai.service';
@@ -10,8 +19,10 @@ import { SendMessageJobData, WebhookEventJobData } from '../jobs/types.job';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { UsageService } from '../../system/usage.service';
 import { BillingService } from '../../billing/billing.service';
+import { AutomationService } from '../../automation/automation.service';
+import { RedisService } from '../../system/redis.service';
 
-@Processor('message-queue')
+@Processor('message-queue', { concurrency: 10 })
 @Injectable()
 export class MessageProcessor extends WorkerHost {
   private readonly logger = new Logger(MessageProcessor.name);
@@ -23,15 +34,73 @@ export class MessageProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly usageService: UsageService,
     private readonly billingService: BillingService,
+    private readonly automationService: AutomationService,
+    private readonly redisService: RedisService,
     @InjectQueue('message-queue') private readonly messageQueue: Queue,
   ) {
     super();
+  }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job, error: Error) {
+    this.logger.error(
+      `[ALERT][DLQ] Job ${job.id} failed and moved to DLQ: ${error.message}`,
+    );
+
+    try {
+      await this.prisma.failedJob.create({
+        data: {
+          jobId: String(job.id),
+          queueName: job.queueName || 'message-queue',
+          data: {
+            ...(job.data as any),
+            _jobName: job.name, // Preserve original job name for retry
+          },
+          reason: error.message,
+          stack: error.stack,
+          workspaceId: job.data?.workspaceId,
+          status: 'PENDING',
+        },
+      });
+    } catch (e) {
+      this.logger.error(`Failed to log failed job to DB: ${e.message}`);
+    }
+  }
+
+  @OnWorkerEvent('completed')
+  async onCompleted(job: Job) {
+    if (!job.id?.startsWith('retry-')) return;
+
+    const parts = job.id.split('-');
+    const originalId = parts.slice(1, -1).join('-');
+
+    if (!originalId) return;
+
+    try {
+      const updated = await (this.prisma as any).failedJob.updateMany({
+        where: {
+          id: originalId,
+          status: 'REQUEUED',
+        },
+        data: {
+          status: 'RESOLVED',
+          resolvedAt: new Date(),
+        },
+      });
+
+      if (updated.count > 0) {
+        this.logger.log(`[DLQ] Job ${originalId} successfully resolved after retry.`);
+      }
+    } catch (e) {
+      this.logger.error(`Failed to resolve failed job in DB: ${e.message}`);
+    }
   }
 
   async process(
     job: Job<SendMessageJobData | WebhookEventJobData>,
   ): Promise<any> {
     this.logger.log(`Processing job ${job.id} of name ${job.name}`);
+    console.log(`\n[QUEUE] Processing job: ${job.name} (ID: ${job.id})`);
 
     switch (job.name) {
       case 'send-message':
@@ -49,9 +118,9 @@ export class MessageProcessor extends WorkerHost {
     try {
       const [workspace, message, contact] = await Promise.all([
         this.prisma.workspace.findUnique({ where: { id: workspaceId } }),
-        this.prisma.message.findUnique({ where: { id: messageId } }), // messageId is unique, but we check workspace infra
+        this.prisma.message.findUnique({ where: { id: messageId } }), 
         this.prisma.contact.findUnique({
-          where: { id: contactId, workspaceId }, // Enforcement of workspace isolation
+          where: { id: contactId, workspaceId }, 
         }),
       ]);
 
@@ -63,10 +132,34 @@ export class MessageProcessor extends WorkerHost {
         throw new Error('Message or Contact not found in this workspace');
       }
 
-      // RETRY SAFETY: Check if message already has a WAMID (indicates previous successful send)
       if (message.whatsappMsgId && message.status !== MessageStatus.FAILED) {
-        this.logger.warn(`Message ${messageId} already has a WAMID ${message.whatsappMsgId}. Skipping API call.`);
+        this.logger.warn(
+          `Message ${messageId} already has a WAMID ${message.whatsappMsgId}. Skipping API call.`,
+        );
         return { success: true, messageId: message.whatsappMsgId };
+      }
+
+      if (workspace.isDemo) {
+        this.logger.log(`[DEMO] Fake sending message to ${contact.phone}`);
+
+        const result = { messageId: `demo_${Date.now()}` };
+
+        await this.prisma.message.update({
+          where: { id: messageId },
+          data: {
+            whatsappMsgId: result.messageId,
+            status: MessageStatus.SENT,
+            isDemo: true,
+          },
+        });
+
+        this.socketGateway.emitToWorkspace(workspaceId, 'message-status-update', {
+          messageId,
+          whatsappMsgId: result.messageId,
+          status: MessageStatus.SENT,
+        });
+
+        return { success: true, messageId: result.messageId };
       }
 
       let result;
@@ -84,7 +177,7 @@ export class MessageProcessor extends WorkerHost {
           contact.phone,
           message.type.toLowerCase() as any,
           message.mediaUrl!,
-          message.content || undefined, // Use content as caption if present
+          message.content || undefined,
         );
       }
 
@@ -102,25 +195,32 @@ export class MessageProcessor extends WorkerHost {
         status: MessageStatus.SENT,
       });
 
-      this.logger.log(`Successfully sent message ${messageId} to ${contact.phone}`);
+      this.logger.log(
+        `Successfully sent message ${messageId} to ${contact.phone}`,
+      );
       return { success: true, messageId: result.messageId };
     } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to handle send-message job: ${errorMsg}`);
-      
-      // Only set to FAILED if it hasn't successfully been sent yet
-      const currentMsg = await this.prisma.message.findUnique({ where: { id: messageId } });
+
+      const currentMsg = await this.prisma.message.findUnique({
+        where: { id: messageId },
+      });
       if (!currentMsg?.whatsappMsgId) {
         await this.prisma.message.update({
           where: { id: messageId },
           data: { status: MessageStatus.FAILED },
         });
- 
-        this.socketGateway.emitToWorkspace(workspaceId, 'message-status-update', {
-          messageId,
-          status: MessageStatus.FAILED,
-          error: errorMsg,
-        });
+
+        this.socketGateway.emitToWorkspace(
+          workspaceId,
+          'message-status-update',
+          {
+            messageId,
+            status: MessageStatus.FAILED,
+            error: errorMsg,
+          },
+        );
       }
 
       return { success: false, error: errorMsg };
@@ -129,12 +229,12 @@ export class MessageProcessor extends WorkerHost {
 
   private async handleWebhook(data: WebhookEventJobData) {
     const { provider, rawPayload } = data;
-    
-    // Extract Event ID for Idempotency
+
     let eventId: string | undefined;
     if (provider === 'whatsapp') {
-      eventId = rawPayload.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id || 
-                rawPayload.entry?.[0]?.changes?.[0]?.value?.statuses?.[0]?.id;
+      eventId =
+        rawPayload.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id ||
+        rawPayload.entry?.[0]?.changes?.[0]?.value?.statuses?.[0]?.id;
     } else if (provider === 'stripe') {
       eventId = rawPayload.id;
     }
@@ -145,11 +245,12 @@ export class MessageProcessor extends WorkerHost {
       });
 
       if (existing) {
-        this.logger.warn(`Duplicate webhook event detected: ${eventId} (${provider}). Skipping.`);
+        this.logger.warn(
+          `Duplicate webhook event detected: ${eventId} (${provider}). Skipping.`,
+        );
         return { success: true, duplicate: true };
       }
 
-      // Log the event immediately to prevent race conditions (simplified)
       await this.prisma.webhookLog.create({
         data: { eventId, provider },
       });
@@ -176,7 +277,7 @@ export class MessageProcessor extends WorkerHost {
         const msg = await this.prisma.message.updateMany({
           where: {
             whatsappMsgId: String(status.id),
-            conversation: { workspaceId }, // Workspace Isolation
+            conversation: { workspaceId },
           },
           data: {
             status: String(status.status).toUpperCase() as MessageStatus,
@@ -185,59 +286,76 @@ export class MessageProcessor extends WorkerHost {
 
         if (msg.count > 0) {
           const updatedMsg = await this.prisma.message.findFirst({
-            where: { whatsappMsgId: String(status.id), conversation: { workspaceId } },
+            where: {
+              whatsappMsgId: String(status.id),
+              conversation: { workspaceId },
+            },
           });
 
           if (updatedMsg) {
-            this.socketGateway.emitToWorkspace(workspaceId, 'message-status-update', {
-              messageId: updatedMsg.id,
-              whatsappMsgId: String(status.id),
-              status: status.status,
-            });
+            this.socketGateway.emitToWorkspace(
+              workspaceId,
+              'message-status-update',
+              {
+                messageId: updatedMsg.id,
+                whatsappMsgId: String(status.id),
+                status: status.status,
+              },
+            );
           }
         }
       }
     }
 
-    // 2. Handle Incoming Messages (IDEMPOTENCY)
+    // 2. Handle Incoming Messages (ATOMIC IDEMPOTENCY)
     if (value.messages) {
       for (const msg of value.messages) {
         const whatsappMsgId = String(msg.id);
-
-        // IDEMPOTENCY CHECK
-        const existingMessage = await this.prisma.message.findUnique({
-          where: { whatsappMsgId },
-        });
-
-        if (existingMessage) {
-          this.logger.warn(`Received duplicate webhook for message ${whatsappMsgId}. Skipping.`);
-          continue;
-        }
-
         const from = String(msg.from);
         const contactName = value.contacts?.[0]?.profile?.name || from;
-        
-        // Determine message type and extract content/media
         const type = String(msg.type).toUpperCase();
         let content = msg.text?.body || '';
         let mediaUrl: string | undefined;
         let mimeType: string | undefined;
 
         if (type !== 'TEXT') {
-          const mediaData = msg[msg.type]; // e.g. msg.image, msg.document
+          const mediaData = msg[msg.type];
           if (mediaData && mediaData.id) {
             try {
-              const workspace = await this.prisma.workspace.findUnique({ where: { id: workspaceId } });
+              const workspace = await this.prisma.workspace.findUnique({
+                where: { id: workspaceId },
+              });
               if (workspace?.metaToken) {
-                mediaUrl = await this.whatsappService.getMediaUrl(workspace.metaToken, mediaData.id);
+                mediaUrl = await this.whatsappService.getMediaUrl(
+                  workspace.metaToken,
+                  mediaData.id,
+                );
                 mimeType = mediaData.mime_type;
-                content = mediaData.caption || ''; // Use caption for media types
+                content = mediaData.caption || '';
               }
-            } catch (err) {
-              this.logger.error(`Failed to resolve media URL for ${mediaData.id}: ${err.message}`);
+            } catch (err: any) {
+              this.logger.error(
+                `Failed to resolve media URL for ${mediaData.id}: ${err.message}`,
+              );
             }
           }
         }
+
+        const lowerContent = content.toLowerCase();
+        const tagsToAdd: string[] = [];
+        if (lowerContent.includes('vip')) tagsToAdd.push('VIP');
+        if (
+          lowerContent.includes('buy') ||
+          lowerContent.includes('purchase') ||
+          lowerContent.includes('order')
+        )
+          tagsToAdd.push('LEAD');
+        if (
+          lowerContent.includes('angry') ||
+          lowerContent.includes('complain') ||
+          lowerContent.includes('worst')
+        )
+          tagsToAdd.push('ANGRY');
 
         // Upsert Contact
         let contact = await this.prisma.contact.findUnique({
@@ -246,7 +364,37 @@ export class MessageProcessor extends WorkerHost {
 
         if (!contact) {
           contact = await this.prisma.contact.create({
-            data: { workspaceId, phone: from, name: contactName },
+            data: {
+              workspaceId,
+              phone: from,
+              name: contactName,
+              tags: tagsToAdd,
+            },
+          });
+        } else if (tagsToAdd.length > 0) {
+          const currentTags = (contact as any).tags || [];
+          const newTags = Array.from(new Set([...currentTags, ...tagsToAdd]));
+          if (newTags.length !== currentTags.length) {
+            contact = await this.prisma.contact.update({
+              where: { id: contact.id },
+              data: { tags: newTags },
+            });
+          }
+        }
+
+        // Basic E-commerce Order Creation
+        if (
+          lowerContent.includes('i want to buy') ||
+          lowerContent.includes('interested in buying')
+        ) {
+          await this.prisma.order.create({
+            data: {
+              workspaceId,
+              contactId: contact.id,
+              product: content.substring(0, 100),
+              price: 0,
+              status: 'PENDING',
+            },
           });
         }
 
@@ -274,9 +422,11 @@ export class MessageProcessor extends WorkerHost {
           });
         }
 
-        // Save Inbound Message
-        const newMessage = await this.prisma.message.create({
-          data: {
+        // Save Inbound Message (Atomic Upsert)
+        const newMessage = await this.prisma.message.upsert({
+          where: { whatsappMsgId },
+          update: {},
+          create: {
             conversationId: conversation.id,
             direction: MessageDirection.INBOUND,
             type,
@@ -288,13 +438,49 @@ export class MessageProcessor extends WorkerHost {
           },
         });
 
+        const isNew = newMessage.timestamp.getTime() > Date.now() - 5000;
+        if (!isNew) {
+           this.logger.warn(`Duplicate message ${whatsappMsgId} detected via upsert, skipping logic.`);
+           continue;
+        }
+
         this.socketGateway.emitToWorkspace(workspaceId, 'new-message', {
           conversationId: conversation.id,
           message: newMessage,
         });
 
-        // AI Response Logic (with Fallback & Retries)
-        if (
+        let automationReply: string | null = null;
+        if (content) {
+          automationReply = await this.automationService.evaluateKeywordRules(
+            workspaceId,
+            content,
+          );
+        }
+
+        if (automationReply) {
+          const autoMsg = await this.prisma.message.create({
+            data: {
+              conversationId: conversation.id,
+              direction: MessageDirection.OUTBOUND,
+              type: 'TEXT',
+              content: automationReply,
+              status: MessageStatus.SENT,
+            },
+          });
+
+          await this.messageQueue.add('send-message', {
+            workspaceId,
+            contactId: contact.id,
+            messageId: autoMsg.id,
+            content: automationReply,
+            type: 'text',
+          } satisfies SendMessageJobData);
+
+          this.socketGateway.emitToWorkspace(workspaceId, 'new-message', {
+            conversationId: conversation.id,
+            message: autoMsg,
+          });
+        } else if (
           conversation.status === ConversationStatus.BOT_ACTIVE &&
           conversation.workspace?.aiSettings
         ) {
@@ -304,8 +490,8 @@ export class MessageProcessor extends WorkerHost {
             take: 10,
           });
 
-          const aiMessages: AIMessage[] = history.reverse().map((m: any) => ({
-            role: (m.direction === 'INBOUND' ? 'user' : 'assistant') as 'user' | 'assistant',
+          const aiMessages: AIMessage[] = history.reverse().map((m) => ({
+            role: m.direction === 'INBOUND' ? 'user' : 'assistant',
             content: m.content || '',
           }));
 
@@ -316,17 +502,45 @@ export class MessageProcessor extends WorkerHost {
 
           while (attempts < maxAttempts && !success) {
             try {
-              // 1. CHECK QUOTA (Every attempt to ensure we don't over-bill/use)
-              await this.usageService.checkAndIncrementAIUsage(workspaceId, (conversation.workspace.aiSettings as any).model);
-
-              // 2. GENERATE AI
-              const aiReply = await this.aiService.generateAiReply(
-                (conversation.workspace.aiSettings as any).provider,
-                aiMessages,
-                { model: (conversation.workspace.aiSettings as any).model },
+              await this.usageService.checkAndIncrementAIUsage(
+                workspaceId,
+                (conversation.workspace.aiSettings as any).model,
               );
 
-              // 3. CREATE MESSAGE
+              // 1.1 TENANT-BASED AI RATE LIMITER
+              const rateLimitKey = `ai_limit:${workspaceId}`;
+              const currentRequests = await this.redisService.incr(rateLimitKey);
+              if (currentRequests === 1) {
+                await this.redisService.expire(rateLimitKey, 60);
+              }
+              if (currentRequests > 10) {
+                throw new Error('AI Rate limit exceeded.');
+              }
+
+              const aiConfig = conversation.workspace.aiSettings as any;
+
+              // 2.2. DEMO PROTECTION (LIMIT 50 MESSAGES)
+              if (conversation.workspace.isDemo) {
+                const demoUsageKey = `demo_usage:${workspaceId}`;
+                const demoCount = await this.redisService.incr(demoUsageKey);
+                if (demoCount === 1) await this.redisService.expire(demoUsageKey, 86400); // 24h reset or just global?
+                
+                if (demoCount > 50) {
+                   throw new Error('DEMO_LIMIT_EXCEEDED');
+                }
+              }
+
+              const aiReply = await this.aiService.generateAiReply(
+                aiConfig.provider,
+                aiMessages,
+                {
+                  model: aiConfig.model,
+                  temperature: aiConfig.temperature,
+                  maxTokens: aiConfig.maxTokens,
+                },
+                conversation.workspace.isDemo,
+              );
+
               const aiMsg = await this.prisma.message.create({
                 data: {
                   conversationId: conversation.id,
@@ -334,6 +548,7 @@ export class MessageProcessor extends WorkerHost {
                   type: 'TEXT',
                   content: aiReply.content,
                   status: MessageStatus.SENT,
+                  isDemo: conversation.workspace.isDemo,
                 },
               });
 
@@ -354,30 +569,26 @@ export class MessageProcessor extends WorkerHost {
             } catch (err: any) {
               aiError = err;
               attempts++;
-              this.logger.error(`AI Bot attempt ${attempts} failed for conv ${conversation.id}: ${err.message}`);
-              
-              if (err.message.includes('quota exceeded')) break; // Don't retry quota issues
-
+              this.logger.error(`AI attempt ${attempts} failed: ${err.message}`);
+              if (err.message.includes('quota exceeded')) break;
               if (attempts < maxAttempts) {
-                // Exponential backoff
-                await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000));
+                await new Promise((resolve) =>
+                  setTimeout(resolve, Math.pow(2, attempts) * 1000),
+                );
               }
             }
           }
 
           if (!success) {
-            // FALLBACK: Handover to human on total AI failure or quota exceeded
-            this.logger.warn(`Shifting conversation ${conversation.id} to HUMAN_REQUIRED after ${attempts} attempts.`);
-            
             await this.prisma.conversation.update({
               where: { id: conversation.id },
               data: { status: ConversationStatus.HUMAN_REQUIRED },
             });
 
             this.socketGateway.emitToWorkspace(workspaceId, 'conversation-status-update', {
-              conversationId: conversation.id,
-              status: ConversationStatus.HUMAN_REQUIRED,
-              reason: aiError?.message || 'AI processing failure',
+               conversationId: conversation.id,
+               status: ConversationStatus.HUMAN_REQUIRED,
+               reason: aiError?.message || 'AI processing failure',
             });
           }
         }

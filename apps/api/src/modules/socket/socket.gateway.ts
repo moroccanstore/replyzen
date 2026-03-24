@@ -25,7 +25,9 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const workspaceId = client.handshake.query.workspaceId as string;
     if (workspaceId) {
       client.join(`workspace:${workspaceId}`);
-      this.logger.log(`Client ${client.id} joined workspace ${workspaceId} automatically`);
+      this.logger.log(
+        `Client ${client.id} joined workspace ${workspaceId} automatically`,
+      );
     } else {
       this.logger.log(`Client connected: ${client.id} (No workspaceId)`);
     }

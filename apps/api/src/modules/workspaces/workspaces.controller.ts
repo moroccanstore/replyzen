@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Patch, Body, UseGuards, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  UseGuards,
+  Param,
+} from '@nestjs/common';
 import { WorkspacesService, UpdateWorkspaceDto } from './workspaces.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
@@ -19,7 +27,10 @@ export class WorkspacesController {
     @User('sub') userId: string,
     @Param('workspaceId') workspaceId: string,
   ) {
-    const membership = await this.workspacesService.getWorkspaceDetails(workspaceId, userId);
+    const membership = await this.workspacesService.getWorkspaceDetails(
+      workspaceId,
+      userId,
+    );
     return {
       userId,
       workspaceId,
@@ -34,7 +45,10 @@ export class WorkspacesController {
   }
 
   @Post()
-  async createWorkspace(@User('sub') userId: string, @Body() data: CreateWorkspaceDto) {
+  async createWorkspace(
+    @User('sub') userId: string,
+    @Body() data: CreateWorkspaceDto,
+  ) {
     return this.workspacesService.createWorkspace(userId, data);
   }
 
@@ -47,7 +61,7 @@ export class WorkspacesController {
     console.log('Get Workspace Details Request:', { userId, workspaceId });
     return this.workspacesService.getWorkspaceDetails(workspaceId, userId);
   }
-  
+
   @Patch(':workspaceId')
   @UseGuards(TenantGuard)
   async updateWorkspace(

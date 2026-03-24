@@ -1,17 +1,24 @@
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
-import "dotenv/config";
 
 async function main() {
-  console.log('Testing Prisma connection with DATABASE_URL:', process.env.DATABASE_URL ? 'PRESENT' : 'MISSING');
+  console.log(
+    'DEBUG: DATABASE_URL =',
+    process.env.DATABASE_URL ? 'PRESENT' : 'MISSING'
+  );
   const prisma = new PrismaClient();
+
   try {
+    console.log('Connecting to database...');
     await prisma.$connect();
-    console.log('✅ Connected successfully!');
-    const count = await prisma.user.count();
-    console.log('User count:', count);
-  } catch (e) {
+    console.log('✅ Connection successful!');
+
+    console.log('Running test query...');
+    const workspaceCount = await prisma.workspace.count();
+    console.log(`✅ Found ${workspaceCount} workspaces.`);
+  } catch (err) {
     console.error('❌ Connection failed:');
-    console.error(e);
+    console.error(err);
     process.exit(1);
   } finally {
     await prisma.$disconnect();

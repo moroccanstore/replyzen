@@ -42,7 +42,10 @@ export class WhatsappService {
     };
 
     payload[type] = { link: mediaUrl };
-    if (caption && (type === 'image' || type === 'video' || type === 'document')) {
+    if (
+      caption &&
+      (type === 'image' || type === 'video' || type === 'document')
+    ) {
       payload[type].caption = caption;
     }
 
@@ -77,9 +80,12 @@ export class WhatsappService {
    */
   async getMediaUrl(accessToken: string, mediaId: string): Promise<string> {
     try {
-      const response = await axios.get(`https://graph.facebook.com/v19.0/${mediaId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const response = await axios.get(
+        `https://graph.facebook.com/v19.0/${mediaId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
       return response.data.url;
     } catch (error: any) {
       this.logger.error(`Failed to get WhatsApp media URL: ${error.message}`);
@@ -90,7 +96,11 @@ export class WhatsappService {
   /**
    * Helper for Meta Graph API POST requests
    */
-  private async postToMeta(accessToken: string, phoneNumberId: string, payload: any) {
+  private async postToMeta(
+    accessToken: string,
+    phoneNumberId: string,
+    payload: any,
+  ) {
     try {
       const response = await axios.post(
         `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,

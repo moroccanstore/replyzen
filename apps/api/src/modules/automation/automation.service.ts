@@ -13,7 +13,7 @@ export class AutomationService {
   ): Promise<string | null> {
     const rules = await this.prisma.automation.findMany({
       where: { workspaceId, isActive: true },
-      orderBy: { id: 'asc' }, // simple ordering for rule priority
+      orderBy: { priority: 'desc' }, // priority-based ordering
     });
 
     const lowerMessage = incomingMessage.toLowerCase();

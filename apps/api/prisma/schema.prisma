@@ -1,11 +1,11 @@
 generator client {
-  provider   = "prisma-client-js"
-  engineType = "binary"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
 }
+
 
 model User {
   id            String         @id @default(uuid())
@@ -43,7 +43,9 @@ model Workspace {
   conversations     Conversation[]
   memberships       Membership[]
   subscriptions     Subscription[]
+  isDemo            Boolean        @default(false)
   usageLogs         UsageLog[]
+  orders            Order[]
 }
 
 model Membership {
@@ -71,9 +73,11 @@ model Contact {
   campaignRecipient CampaignRecipient[]
   workspace         Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   conversations     Conversation[]
+  orders            Order[]
 
   @@unique([workspaceId, phone])
   @@index([workspaceId])
+  @@index([createdAt])
 }
 
 model Conversation {
@@ -105,6 +109,7 @@ model Message {
   mediaUrl       String?
   mimeType       String?
   status         MessageStatus    @default(SENT)
+  isDemo         Boolean          @default(false)
   timestamp      DateTime         @default(now())
   conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -119,6 +124,7 @@ model Automation {
   keywords    String[]
   reply       String
   type        AutomationType @default(RULE)
+  priority    Int            @default(0)
   isActive    Boolean        @default(true)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
@@ -141,6 +147,7 @@ model Campaign {
   recipients      CampaignRecipient[]
 
   @@index([workspaceId])
+  @@index([createdAt])
 }
 
 model CampaignRecipient {
@@ -163,6 +170,7 @@ model AiSetting {
   apiKeyEnc   String?
   temperature Float      @default(0.7)
   threshold   Float      @default(0.7)
+  maxTokens   Int        @default(1000)
   fallbackMsg String?
   workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
@@ -213,6 +221,22 @@ model WebhookLog {
   createdAt DateTime @default(now())
 
   @@index([eventId])
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  workspaceId String
+  contactId   String
+  product     String
+  price       Float       @default(0)
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact     Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([contactId])
 }
 
 enum Role {
@@ -272,4 +296,51 @@ enum AIProvider {
   OPENAI
   GEMINI
   CLAUDE
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+}
+
+model FailedJob {
+  id         String          @id @default(uuid())
+  queueName  String
+  jobId      String
+  data       Json
+  reason     String
+  stack      String?
+  status     FailedJobStatus @default(PENDING)
+  requeuedAt DateTime?
+  resolvedAt DateTime?
+  createdAt  DateTime        @default(now())
+  workspaceId String?
+
+  @@index([queueName])
+  @@index([createdAt])
+  @@index([workspaceId])
+}
+
+enum FailedJobStatus {
+  PENDING
+  REQUEUED
+  RESOLVED
+  DISCARDED
+}
+
+model License {
+  id              String   @id @default(uuid())
+  key             String   @unique
+  token           String
+  domain          String
+  status          String   @default("VALID") // VALID, BLOCKED, GRACE
+  lastValidatedAt DateTime @default(now())
+  graceExpiresAt  DateTime?
+  supportEmail    String?
+  supportWhatsapp String?
+  config          Json?
+  configHash      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

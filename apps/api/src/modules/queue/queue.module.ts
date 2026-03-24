@@ -2,46 +2,27 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { MessageProcessor } from './processors/message.processor';
 import { CampaignProcessor } from './processors/campaign.processor';
+import { UsageProcessor } from './processors/usage.processor';
+import { WhatsappModule } from '../whatsapp/whatsapp.module';
+import { AiModule } from '../ai/ai.module';
+import { AutomationModule } from '../automation/automation.module';
 import { SystemModule } from '../system/system.module';
 import { PrismaModule } from '../../prisma/prisma.module';
-import { WhatsappModule } from '../../whatsapp/whatsapp.module';
-import { AiModule } from '../../ai/ai.module';
-
 
 @Module({
   imports: [
     WhatsappModule,
     AiModule,
+    AutomationModule,
     SystemModule,
     PrismaModule,
     BullModule.registerQueue(
-      { 
-        name: 'message-queue',
-        defaultJobOptions: {
-          attempts: 5,
-          backoff: {
-            type: 'exponential',
-            delay: 1000,
-          },
-          removeOnComplete: true,
-          removeOnFail: false,
-        },
-      },
-      { 
-        name: 'campaign-queue',
-        defaultJobOptions: {
-          attempts: 3,
-          backoff: {
-            type: 'fixed',
-            delay: 5000,
-          },
-          removeOnComplete: true,
-          removeOnFail: false,
-        },
-      },
+      { name: 'message-queue' },
+      { name: 'campaign-queue' },
+      { name: 'usage-queue' },
     ),
   ],
-  providers: [MessageProcessor, CampaignProcessor],
+  providers: [MessageProcessor, CampaignProcessor, UsageProcessor],
   exports: [BullModule],
 })
 export class QueueModule {}

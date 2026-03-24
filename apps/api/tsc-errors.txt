@@ -1,0 +1,5 @@
+﻿src/modules/analytics/analytics.controller.ts(3,30): error TS2307: Cannot find module '../../common/guards/jwt.guard' or its corresponding type declarations.
+src/modules/analytics/analytics.controller.ts(5,34): error TS2307: Cannot find module '../../common/decorators/current-workspace.decorator' or its corresponding type declarations.
+src/modules/automation/automation.service.ts(16,18): error TS2353: Object literal may only specify known properties, and 'priority' does not exist in type 'AutomationOrderByWithRelationInput | AutomationOrderByWithRelationInput[]'.
+src/modules/queue/processors/message.processor.ts(331,43): error TS2339: Property 'order' does not exist on type 'PrismaService'.
+src/modules/queue/processors/message.processor.ts(460,19): error TS2353: Object literal may only specify known properties, and 'temperature' does not exist in type '{ model?: string | undefined; }'.

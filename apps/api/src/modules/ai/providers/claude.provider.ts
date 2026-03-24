@@ -8,13 +8,20 @@ export class ClaudeProvider implements IAIProvider {
 
   async generateResponse(
     messages: AIMessage[],
-    settings: { model?: string; apiKey?: string },
+    settings: {
+      model?: string;
+      apiKey?: string;
+      temperature?: number;
+      maxTokens?: number;
+    },
   ): Promise<AIResponse> {
     const model = settings.model || 'claude-3-5-sonnet-20240620';
     const apiKey = settings.apiKey;
 
     if (!apiKey) {
-      throw new Error('Claude API Key is missing. Please configure it in Workspace Settings.');
+      throw new Error(
+        'Claude API Key is missing. Please configure it in Workspace Settings.',
+      );
     }
 
     const anthropic = new Anthropic({
@@ -25,20 +32,22 @@ export class ClaudeProvider implements IAIProvider {
       this.logger.log(`Generating response via Claude: ${model}`);
 
       // Extract system prompt if present
-      const systemMessage = messages.find(m => m.role === 'system');
-      const userMessages = messages.filter(m => m.role !== 'system');
+      const systemMessage = messages.find((m) => m.role === 'system');
+      const userMessages = messages.filter((m) => m.role !== 'system');
 
       const response = await anthropic.messages.create({
         model: model,
-        max_tokens: 1024,
+        max_tokens: settings.maxTokens || 1024,
+        temperature: settings.temperature || 0.7,
         system: systemMessage?.content,
-        messages: userMessages.map(m => ({
+        messages: userMessages.map((m) => ({
           role: m.role as 'user' | 'assistant',
           content: m.content,
         })),
       });
 
-      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+      const content =
+        response.content[0].type === 'text' ? response.content[0].text : '';
 
       return {
         content: content,
@@ -47,7 +56,8 @@ export class ClaudeProvider implements IAIProvider {
         usage: {
           promptTokens: response.usage.input_tokens,
           completionTokens: response.usage.output_tokens,
-          totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+          totalTokens:
+            response.usage.input_tokens + response.usage.output_tokens,
         },
       };
     } catch (error) {

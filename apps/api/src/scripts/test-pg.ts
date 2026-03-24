@@ -2,7 +2,10 @@ import { Client } from 'pg';
 import 'dotenv/config';
 
 async function test() {
-  console.log('Testing connection to:', process.env.DATABASE_URL?.split('@')[1]);
+  console.log(
+    'Testing connection to:',
+    process.env.DATABASE_URL?.split('@')[1],
+  );
   const client = new Client({
     connectionString: process.env.DATABASE_URL,
   });

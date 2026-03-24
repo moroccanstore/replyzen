@@ -3,7 +3,6 @@ import { PrismaClient, Role, Plan, CampaignStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-
 async function main() {
   console.log('🌱 Seeding demo data...');
 

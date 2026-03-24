@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookEventJobData } from '../queue/jobs/types.job';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class WebhooksService {
@@ -19,7 +20,8 @@ export class WebhooksService {
     }
 
     // 1. Extract Phone Number ID to resolve Workspace
-    const phoneNumberId = payload.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
+    const phoneNumberId =
+      payload.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
 
     if (!phoneNumberId) {
       this.logger.error('No phone_number_id found in WhatsApp webhook payload');
@@ -32,31 +34,74 @@ export class WebhooksService {
     });
 
     if (!workspace) {
-      this.logger.error(`No workspace found for WhatsApp Phone ID: ${phoneNumberId}`);
+      this.logger.error(
+        `No workspace found for WhatsApp Phone ID: ${phoneNumberId}`,
+      );
       return { success: false };
     }
 
-    this.logger.log(`Received WhatsApp webhook for workspace ${workspace.id}, pushing to queue`);
+    console.log(
+      `[WEBHOOK] Received WhatsApp webhook for workspace ${workspace.id}, pushing to queue`,
+    );
 
     // 3. Queue the event for background processing
-    await this.messageQueue.add('process-webhook', {
-      workspaceId: workspace.id,
-      rawPayload: payload,
-      provider: 'whatsapp',
-    } satisfies WebhookEventJobData);
+    const eventId =
+      payload.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id ||
+      payload.entry?.[0]?.changes?.[0]?.value?.statuses?.[0]?.id;
+
+    await this.messageQueue.add(
+      'process-webhook',
+      {
+        workspaceId: workspace.id,
+        rawPayload: payload,
+        provider: 'whatsapp',
+      } satisfies WebhookEventJobData,
+      {
+        jobId: eventId ? `whatsapp:${eventId}` : undefined,
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 500 },
+        removeOnComplete: true,
+      },
+    );
 
     return { success: true };
   }
 
   async handleStripeWebhook(payload: any, signature: string) {
-    this.logger.log(`Received Stripe webhook, pushing to queue`);
+    console.log(`[WEBHOOK] Received Stripe webhook, pushing to queue`);
 
-    await this.messageQueue.add('process-webhook', {
-      workspaceId: 'system',
-      rawPayload: payload,
-      provider: 'stripe',
-    } satisfies WebhookEventJobData);
+    await this.messageQueue.add(
+      'process-webhook',
+      {
+        workspaceId: 'system',
+        rawPayload: payload,
+        provider: 'stripe',
+      } satisfies WebhookEventJobData,
+      {
+        jobId: payload.id ? `stripe:${payload.id}` : undefined,
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 500 },
+        removeOnComplete: true,
+      },
+    );
 
     return { success: true };
+  }
+
+  verifyMetaSignature(rawBody: Buffer, signature: string): boolean {
+    const appSecret = process.env.WHATSAPP_APP_SECRET;
+    if (!appSecret || !signature?.startsWith('sha256=')) return false;
+
+    const hash = crypto
+      .createHmac('sha256', appSecret)
+      .update(rawBody)
+      .digest('hex');
+
+    const expected = Buffer.from(`sha256=${hash}`);
+    const received = Buffer.from(signature);
+
+    if (expected.length !== received.length) return false;
+
+    return crypto.timingSafeEqual(expected, received);
   }
 }

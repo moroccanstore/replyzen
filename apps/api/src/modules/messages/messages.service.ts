@@ -57,7 +57,11 @@ export class MessagesService {
       content: params.content || '',
       type: (params.type?.toLowerCase() || 'text') as any,
       mediaUrl: params.mediaUrl,
-    } satisfies SendMessageJobData);
+    } satisfies SendMessageJobData, {
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 1000 },
+      removeOnComplete: true,
+    });
 
     // 3. Emit real-time update to the UI
     this.socketGateway.emitToWorkspace(params.workspaceId, 'new-message', {
@@ -65,7 +69,9 @@ export class MessagesService {
       message,
     });
 
-    this.logger.log(`Queued outbound ${params.type} message ${message.id} for workspace ${params.workspaceId}`);
+    this.logger.log(
+      `Queued outbound ${params.type} message ${message.id} for workspace ${params.workspaceId}`,
+    );
 
     return message;
   }

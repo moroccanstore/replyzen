@@ -1,71 +1,128 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from './redis.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
-export class UsageService {
+export class UsageService implements OnApplicationBootstrap {
   private readonly logger = new Logger(UsageService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
+    @InjectQueue('usage-queue') private readonly usageQueue: Queue,
+  ) {}
+
+  async onApplicationBootstrap() {
+    this.logger.log('Hydrating Redis usage cache from Postgres...');
+    await this.hydrateRedisFromPostgres();
+  }
+
+  /**
+   * Hydrates Redis with current usage counts from DB for all active workspaces.
+   */
+  private async hydrateRedisFromPostgres() {
+    const workspaces = await this.prisma.workspace.findMany({
+      select: { id: true, aiUsageCount: true, mediaUsageSize: true },
+    });
+
+    for (const ws of workspaces) {
+      const aiKey = `usage:ai:${ws.id}`;
+      const mediaKey = `usage:media:${ws.id}`;
+
+      // Only set if not already present to avoid overwriting live traffic
+      const existingAi = await this.redisService.get(aiKey);
+      if (existingAi === null) {
+        await this.redisService.setex(aiKey, 86400, ws.aiUsageCount.toString()); // 24h TTL
+      }
+
+      const existingMedia = await this.redisService.get(mediaKey);
+      if (existingMedia === null) {
+        await this.redisService.setex(mediaKey, 86400, ws.mediaUsageSize.toString());
+      }
+    }
+    this.logger.log(`Hydrated ${workspaces.length} workspaces.`);
+  }
+
+  private getWeekKey(): string {
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const pastDaysOfYear = (now.getTime() - startOfYear.getTime()) / 86400000;
+    const weekNumber = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
+    return `${now.getFullYear()}-W${weekNumber}`;
+  }
+
+  private getSecondsUntilWeekEnd(): number {
+    const now = new Date();
+    const day = now.getDay(); // 0 is Sunday
+    const diff = day === 0 ? 0 : 7 - day; // days until next Sunday
+    const nextSunday = new Date(now);
+    nextSunday.setDate(now.getDate() + diff);
+    nextSunday.setHours(23, 59, 59, 999);
+    return Math.floor((nextSunday.getTime() - now.getTime()) / 1000);
+  }
 
   /**
    * Checks if a workspace has enough quota for an AI action and increments usage.
-   * Throws an error if quota is exceeded.
    */
-  async checkAndIncrementAIUsage(workspaceId: string, model: string): Promise<void> {
-    const workspace = await this.prisma.workspace.findUnique({
-      where: { id: workspaceId },
-      select: {
-        aiWeeklyLimit: true,
-        aiUsageCount: true,
-        lastUsageReset: true,
-      },
-    });
+  async checkAndIncrementAIUsage(
+    workspaceId: string,
+    model: string,
+  ): Promise<void> {
+    const weekKey = this.getWeekKey();
+    const usageKey = `usage:ai:${workspaceId}:${weekKey}`;
 
-    if (!workspace) throw new Error('Workspace not found');
-
-    const now = new Date();
-    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    if (workspace.lastUsageReset < oneWeekAgo) {
-      this.logger.log(`Resetting AI usage for workspace ${workspaceId}`);
-      await this.prisma.workspace.update({
-        where: { id: workspaceId },
-        data: {
-          aiUsageCount: 0,
-          lastUsageReset: now,
-        },
-      });
-      workspace.aiUsageCount = 0;
+    // 2. Atomic Increment
+    const newCount = await this.redisService.incr(usageKey);
+    if (newCount === 1) {
+      // Set expiry to end of current ISO week
+      await this.redisService.expire(usageKey, this.getSecondsUntilWeekEnd());
     }
 
-    if (workspace.aiUsageCount >= workspace.aiWeeklyLimit) {
+    // 3. Check against limit
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { aiWeeklyLimit: true },
+    });
+
+    const limit = workspace?.aiWeeklyLimit || 0;
+
+    if (newCount > limit) {
+      await this.redisService.incrby(usageKey, -1); // Atomic rollback
       this.logger.warn(`AI quota exceeded for workspace ${workspaceId}`);
       throw new Error('AI weekly quota exceeded. Please upgrade your plan.');
     }
 
-    // Increment usage
-    await this.prisma.workspace.update({
-      where: { id: workspaceId },
-      data: {
-        aiUsageCount: { increment: 1 },
-      },
-    });
-
-    // Log the usage
-    await this.prisma.usageLog.create({
-      data: {
+    // 4. Async Sync to DB via Queue
+    await this.usageQueue.add(
+      'persist-usage',
+      {
         workspaceId,
         type: 'AI_MESSAGE',
-        count: 1,
-        metadata: { model },
+        count: newCount,
+        logEntry: {
+          type: 'AI_MESSAGE',
+          metadata: { model },
+        },
       },
-    });
+      {
+        attempts: 10,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: true,
+      },
+    );
   }
 
   /**
    * Checks media usage and increments.
    */
-  async checkMediaUsage(workspaceId: string, sizeInBytes: number): Promise<void> {
+  async checkMediaUsage(
+    workspaceId: string,
+    sizeInBytes: number,
+  ): Promise<void> {
+    const mediaKey = `usage:media:${workspaceId}`;
+    
     const workspace = await this.prisma.workspace.findUnique({
       where: { id: workspaceId },
       select: {
@@ -81,53 +138,70 @@ export class UsageService {
     const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
 
     if (workspace.lastMediaReset < oneMonthAgo) {
-      this.logger.log(`Resetting Media usage for workspace ${workspaceId}`);
+      // Reset needed - this happens once per month
+      await this.redisService.setex(mediaKey, 86400, '0');
       await this.prisma.workspace.update({
         where: { id: workspaceId },
-        data: {
-          mediaUsageSize: 0,
-          lastMediaReset: now,
-        },
+        data: { mediaUsageSize: 0, lastMediaReset: now },
       });
       workspace.mediaUsageSize = 0;
     }
 
-    if (workspace.mediaUsageSize + sizeInBytes > workspace.mediaMonthlyLimit) {
+    const currentUsage = await this.redisService.get(mediaKey);
+    const newSize = (currentUsage ? parseInt(currentUsage) : workspace.mediaUsageSize) + sizeInBytes;
+
+    if (newSize > workspace.mediaMonthlyLimit) {
       this.logger.warn(`Media quota exceeded for workspace ${workspaceId}`);
-      throw new Error('Media storage limit exceeded for the month. Please upgrade your plan.');
+      throw new Error('Media storage limit exceeded. Please upgrade your plan.');
     }
 
-    // Increment usage
-    await this.prisma.workspace.update({
-      where: { id: workspaceId },
-      data: {
-        mediaUsageSize: { increment: sizeInBytes },
-      },
-    });
+    // Increment in Redis
+    const actualNewSize = await this.redisService.incrby(mediaKey, sizeInBytes);
 
-    // Log the usage
-    await this.prisma.usageLog.create({
-      data: {
+    // Enqueue persistence
+    await this.usageQueue.add(
+      'persist-usage',
+      {
         workspaceId,
-        type: 'MEDIA_UPLOAD',
-        count: 1,
-        metadata: { size: sizeInBytes },
+        type: 'MEDIA_SIZE',
+        count: actualNewSize,
+        logEntry: {
+          type: 'MEDIA_UPLOAD',
+          metadata: { size: sizeInBytes },
+        },
       },
-    });
+      {
+        attempts: 10,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: true,
+      },
+    );
   }
 
   /**
-   * Logs token usage for AI responses.
+   * Logs token usage for AI responses via Queue (Durable).
    */
-  async logTokens(workspaceId: string, model: string, tokens: number): Promise<void> {
-    await this.prisma.usageLog.create({
-      data: {
+  async logTokens(
+    workspaceId: string,
+    model: string,
+    tokens: number,
+  ): Promise<void> {
+    await this.usageQueue.add(
+      'persist-usage',
+      {
         workspaceId,
-        type: 'AI_TOKEN',
-        count: tokens,
-        metadata: { model },
+        logEntry: {
+          type: 'AI_TOKEN',
+          count: tokens,
+          metadata: { model },
+        },
       },
-    });
+      {
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 1000 },
+        removeOnComplete: true,
+      },
+    );
   }
 
   /**
