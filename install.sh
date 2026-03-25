@@ -80,6 +80,9 @@ echo "🟢 Installing dependencies (this may take a few minutes)..."
 cd /var/www/autowhats
 npm install --quiet
 
+# Export environment for Prisma (needed for migration)
+export DATABASE_URL="postgresql://autowhats:autowhats@localhost:5432/autowhats?schema=public"
+
 echo "🟢 Generating Prisma client..."
 cd /var/www/autowhats/apps/api
 npx prisma generate
@@ -87,8 +90,12 @@ npx prisma generate
 echo "🟢 Running database migrations..."
 npx prisma migrate deploy || true
 
-echo "🟢 Building application (API + Web)..."
-cd /var/www/autowhats
+echo "🟢 Building API..."
+cd /var/www/autowhats/apps/api
+npm run build
+
+echo "🟢 Building Web application..."
+cd /var/www/autowhats/apps/web
 npm run build
 
 # --- 8. ENV SETUP ---
