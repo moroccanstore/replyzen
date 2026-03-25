@@ -98,6 +98,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="flex bg-muted/50 rounded-lg p-1 border border-border/50">
                 <Link 
                   href={pathname.replace("/fr", "") || "/"} 
+                  aria-label="Switch to English"
                   className={cn(
                     "px-2 py-1 text-xs font-bold rounded transition-all",
                     lang === "en" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
@@ -107,6 +108,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </Link>
                 <Link 
                   href={pathname.startsWith("/fr") ? pathname : `/fr${pathname === "/" ? "" : pathname}`} 
+                  aria-label="Passer en Français"
                   className={cn(
                     "px-2 py-1 text-xs font-bold rounded transition-all",
                     lang === "fr" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
@@ -127,6 +129,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <button 
             className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
           >
             {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -149,6 +152,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   <Link 
                     href={pathname.replace("/fr", "") || "/"} 
                     onClick={() => setMobileMenuOpen(false)}
+                    aria-label="Switch to English"
                     className={cn(
                       "px-2 py-1 text-xs font-bold rounded transition-all",
                       lang === "en" ? "bg-primary text-white" : "text-muted-foreground"
@@ -159,6 +163,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   <Link 
                     href={pathname.startsWith("/fr") ? pathname : `/fr${pathname === "/" ? "" : pathname}`} 
                     onClick={() => setMobileMenuOpen(false)}
+                    aria-label="Passer en Français"
                     className={cn(
                       "px-2 py-1 text-xs font-bold rounded transition-all",
                       lang === "fr" ? "bg-primary text-white" : "text-muted-foreground"
@@ -170,6 +175,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <button 
                   className="p-2 rounded-lg hover:bg-muted transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
+                  aria-label="Close menu"
                 >
                   <X size={20} />
                 </button>

@@ -11,6 +11,7 @@ interface ScreenshotBlockProps {
   description?: string;
   className?: string;
   glow?: boolean;
+  sizes?: string;
 }
 
 export function ScreenshotBlock({ 
@@ -19,7 +20,8 @@ export function ScreenshotBlock({
   title, 
   description, 
   className,
-  glow = true 
+  glow = true,
+  sizes
 }: ScreenshotBlockProps) {
   return (
     <div className={cn("group relative", className)}>
@@ -39,6 +41,7 @@ export function ScreenshotBlock({
                 alt={alt}
                 width={1280}
                 height={720}
+                sizes={sizes}
                 className="w-full h-auto object-cover rounded-xl transition-transform duration-700 hover:scale-105"
               />
           ) : (

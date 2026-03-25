@@ -9,6 +9,7 @@ import {
   ArrowRight,
   ShieldCheck,
   Smartphone,
+  Download,
   LucideIcon
 } from "lucide-react";
 import Link from "next/link";
@@ -16,7 +17,9 @@ import { SectionBlock } from "@/components/ui/SectionBlock";
 import { FeatureCard } from "@/components/ui/FeatureCard";
 import { ScreenshotBlock } from "@/components/ui/ScreenshotBlock";
 import { FadeIn, StaggerContainer, staggerItem } from "@/components/ui/Animations";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
+import { HeroBackground } from "./HeroBackground";
+import { FloatingElements } from "./FloatingElements";
 import type { Dictionary } from "@/i18n/types";
 
 interface LandingContentProps {
@@ -35,64 +38,106 @@ const iconMap: Record<number, LucideIcon> = {
 
 export function LandingContent({ dict, lang }: LandingContentProps) {
   const prefix = lang === "fr" ? "/fr" : "";
+  const { scrollY } = useScroll();
+  const heroImageY = useTransform(scrollY, [0, 500], [0, 100]);
+
+  // Animation for the title split
+  const titleWords = dict.hero.title.split(" ");
 
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden text-sm sm:text-base">
-        {/* Ambient Glows */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
-        <div className="absolute -top-[200px] -right-[100px] w-[500px] h-[500px] bg-secondary/5 rounded-full blur-[100px] pointer-events-none" />
+      <section className="relative pt-32 pb-20 md:pt-48 md:pb-40 overflow-hidden text-sm sm:text-base min-h-[90vh] flex items-center">
+        <HeroBackground />
+        <FloatingElements />
         
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center max-w-4xl mx-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
+          <div className="text-center max-w-4xl mx-auto mb-16 sm:mb-24">
             <FadeIn>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs sm:text-sm font-medium mb-8 shadow-[0_0_15px_rgba(124,58,237,0.2)]">
-                <Zap size={14} className="fill-current" />
-                <span>{dict.hero.badge}</span>
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs sm:text-sm font-bold mb-8 shadow-[0_0_20px_rgba(124,58,237,0.2)] hover:bg-primary/15 transition-colors cursor-default">
+                <Zap size={14} aria-hidden="true" className="fill-current animate-pulse" />
+                <span className="tracking-wide uppercase">{dict.hero.badge}</span>
               </div>
             </FadeIn>
             
-            <FadeIn delay={0.1}>
-              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-8 leading-[1.1]">
-                {dict.hero.title} <br />
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_auto] animate-gradient">{dict.hero.titleAccent}</span>
+            <div className="overflow-hidden mb-8">
+              <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tighter leading-[1] text-white">
+                <motion.span 
+                  className="flex flex-wrap justify-center gap-x-[0.2em]"
+                  variants={{
+                    visible: { transition: { staggerChildren: 0.1 } }
+                  }}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  {titleWords.map((word, i) => (
+                    <motion.span 
+                      key={i}
+                      variants={{
+                        hidden: { y: "100%", opacity: 0 },
+                        visible: { y: 0, opacity: 1, transition: { type: "spring", damping: 15, stiffness: 200 } }
+                      }}
+                      className="inline-block"
+                    >
+                      {word}
+                    </motion.span>
+                  ))}
+                </motion.span>
+                <motion.span 
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.8, duration: 1, ease: [0.16, 1, 0.3, 1] }}
+                  className="block mt-2 bg-clip-text text-transparent bg-gradient-to-r from-primary via-[#a78bfa] to-secondary bg-[length:200%_auto] animate-gradient pb-2"
+                >
+                  {dict.hero.titleAccent}
+                </motion.span>
               </h1>
-            </FadeIn>
+            </div>
             
-            <FadeIn delay={0.2}>
-              <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-muted-foreground mb-12 leading-relaxed max-w-3xl mx-auto">
+            <FadeIn delay={1}>
+              <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-muted-foreground mb-12 leading-relaxed max-w-3xl mx-auto font-medium">
                 {dict.hero.subtitle}
               </p>
             </FadeIn>
             
-            <FadeIn delay={0.3}>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <FadeIn delay={1.2}>
+              <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
                 <Link 
                   href={`${prefix}/product`} 
-                  className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 md:px-10 md:py-5 rounded-2xl bg-gradient-to-r from-primary to-[#9f67ff] text-white font-bold text-base sm:text-lg md:text-xl shadow-[0_0_40px_rgba(124,58,237,0.4)] hover:shadow-[0_0_60px_rgba(124,58,237,0.6)] border-t border-white/20 transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group relative overflow-hidden"
+                  className="w-full sm:w-auto px-8 py-4 sm:px-10 sm:py-5 rounded-2xl bg-gradient-to-r from-primary to-[#9f67ff] text-white font-black text-lg sm:text-xl shadow-[0_0_50px_rgba(124,58,237,0.4)] hover:shadow-[0_0_80px_rgba(124,58,237,0.6)] border-t border-white/20 transition-all duration-300 hover:scale-110 active:scale-95 flex items-center justify-center gap-3 group relative overflow-hidden"
                 >
                   <div className="absolute inset-0 bg-white/20 translate-y-[-100%] group-hover:translate-y-[100%] transition-transform duration-700 ease-in-out" />
                   <span className="relative z-10 drop-shadow-md">{dict.hero.ctaPrimary}</span>
-                  <ArrowRight size={20} className="relative z-10 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight size={22} className="relative z-10 group-hover:translate-x-2 transition-transform" />
                 </Link>
                 <Link 
                   href={`${prefix}/install`} 
-                  className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 md:px-10 md:py-5 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 text-white/90 hover:text-white font-bold text-base sm:text-lg md:text-xl hover:bg-white/10 hover:border-white/20 transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center"
+                  className="w-full sm:w-auto px-8 py-4 sm:px-10 sm:py-5 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 text-white/90 hover:text-white font-extrabold text-lg sm:text-xl hover:bg-white/10 hover:border-white/20 transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
                 >
+                  <Download size={20} aria-hidden="true" className="text-primary" />
                   {dict.hero.ctaSecondary}
                 </Link>
               </div>
             </FadeIn>
           </div>
 
-          <FadeIn delay={0.5} distance={40} className="mt-24">
+          <motion.div 
+            style={{ y: heroImageY }}
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.5, duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-12 sm:mt-24 relative"
+          >
+            {/* Focal Glow */}
+            <div className="absolute inset-x-0 -top-20 h-60 bg-primary/20 blur-[100px] pointer-events-none -z-10" />
+            
             <ScreenshotBlock 
               src="/screenshots/dashboard.png"
               alt="AUTOWHATS Dashboard Preview" 
-              className="max-w-5xl mx-auto"
+              className="max-w-6xl mx-auto shadow-[0_30px_100px_rgba(0,0,0,0.5)]"
+              sizes="(max-width: 768px) 100vw, (max-width: 1280px) 90vw, 1200px"
             />
-          </FadeIn>
+          </motion.div>
         </div>
       </section>
 
