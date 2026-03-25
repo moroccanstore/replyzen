@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { CloudinaryImage } from "@/components/ui/CloudinaryImage";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
@@ -34,7 +34,7 @@ export function ScreenshotBlock({
           style={{ transformStyle: "preserve-3d", perspective: "1000px" }}
         >
           {src ? (
-              <Image
+              <CloudinaryImage
                 src={src}
                 alt={alt}
                 width={1280}
