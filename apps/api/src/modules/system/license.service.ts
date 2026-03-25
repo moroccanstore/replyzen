@@ -160,13 +160,26 @@ export class LicenseService implements OnApplicationBootstrap {
     const license = await this.prisma.license.findFirst();
     if (!license) return;
 
+    /**
+     * PROFESSIONAL: 24h Caching Logic
+     * Avoid redundant pings and handle server downtime gracefully.
+     */
+    const now = new Date();
+    const lastValidated = license.lastValidatedAt;
+    const diffHours = (now.getTime() - lastValidated.getTime()) / (1000 * 60 * 60);
+
+    if (diffHours < 24 && license.status === 'VALID') {
+      this.logger.log('[LICENSE] Using cached validation (Last checked < 24h ago)');
+      return;
+    }
+
     try {
       const response = await axios.post(`${this.apiUrl}/validate-key`, {
         token: license.token,
         domain: license.domain,
         // Send current hash to server to check override
         currentHash: (license as any).configHash,
-      });
+      }, { timeout: 10000 });
 
       if (response.status === 200) {
         const { config, configHash } = response.data;
@@ -233,8 +246,9 @@ export class LicenseService implements OnApplicationBootstrap {
       } else {
         // Network or Server error
         this.logger.warn(
-          '[LICENSE] Validation failed -> entering/staying in grace mode (Server unreachable)',
+          `[LICENSE] Validation failed (${error.message}) -> Falling back to cached VALID state (Grace Mode).`,
         );
+        // We stay VALID but don't update lastValidatedAt, so we'll try again next time.
       }
     }
   }

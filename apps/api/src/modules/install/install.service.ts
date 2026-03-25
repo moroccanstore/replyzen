@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import * as bcrypt from 'bcrypt';
+import axios from 'axios';
 
 @Injectable()
 export class InstallService {
@@ -18,6 +19,66 @@ export class InstallService {
   private readonly lockFile = path.join(process.cwd(), 'install.lock');
   private readonly envFile = path.join(process.cwd(), '.env');
   private readonly envTempFile = path.join(process.cwd(), '.env.tmp');
+
+  async verifyLicense(key: string, domain: string): Promise<{ success: boolean; message: string }> {
+    try {
+      this.logger.log(`[LICENSE] Verifying key ${key.substring(0, 8)}... for domain ${domain}`);
+      
+      // 1. Get Public IP for verification
+      const ipRequest = axios.get('https://ifconfig.me/ip', { timeout: 3000 });
+      const ipRes = await Promise.race([
+        ipRequest,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('IP check timeout')), 3000))
+      ]) as any;
+      const ip = (ipRes.data as string).trim();
+
+      // 2. Verification with 5s timeout
+      const verifyRequest = axios.post('https://license.daki.pro/verify', {
+        key,
+        domain,
+        ip,
+      }, { timeout: 5000 });
+
+      const response = await Promise.race([
+        verifyRequest,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('License server timeout')), 5000))
+      ]) as any;
+
+      if (response.status === 200 && response.data.success) {
+        return { success: true, message: 'License verified successfully' };
+      }
+      return { success: false, message: response.data.message || 'Invalid license key' };
+    } catch (error: any) {
+      const msg = error.response?.data?.message || error.message;
+      this.logger.warn(`[LICENSE] Verification warning: ${msg}. Entering temporary grace mode.`);
+      
+      // Professional Fallback: allow temporary access for network errors/timeouts
+      return { success: true, message: 'License server unreachable. Temporary grace mode activated.' };
+    }
+  }
+
+  async getInstallationStep(): Promise<number> {
+    try {
+      const step = await this.prisma.systemSetting.findUnique({
+        where: { key: 'install_step' },
+      });
+      return step ? parseInt(step.value, 10) : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  async setInstallationStep(step: number): Promise<void> {
+    try {
+      await this.prisma.systemSetting.upsert({
+        where: { key: 'install_step' },
+        update: { value: step.toString() },
+        create: { key: 'install_step', value: step.toString() },
+      });
+    } catch (e: any) {
+      this.logger.error(`Failed to save install step: ${e.message}`);
+    }
+  }
 
   constructor(
     private readonly configService: ConfigService,
