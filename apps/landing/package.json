@@ -31,6 +31,8 @@
   },
   "optionalDependencies": {
     "lightningcss-linux-x64-gnu": "^1.29.1",
-    "lightningcss-linux-arm64-gnu": "^1.29.1"
+    "lightningcss-linux-arm64-gnu": "^1.29.1",
+    "@next/swc-linux-x64-gnu": "16.2.1",
+    "@next/swc-linux-arm64-gnu": "16.2.1"
   }
 }
