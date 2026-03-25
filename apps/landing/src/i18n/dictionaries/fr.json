@@ -1,0 +1,77 @@
+{
+  "nav": {
+    "home": "Accueil",
+    "product": "Produit",
+    "install": "Installation",
+    "howToUse": "Comment Utiliser",
+    "docs": "Docs",
+    "pricing": "Tarifs",
+    "support": "Support",
+    "tryDashboard": "Essayer le Dashboard"
+  },
+  "hero": {
+    "badge": "✨ AI WhatsApp Sales Agent",
+    "title": "Votre CRM WhatsApp Maroc",
+    "titleAccent": "avec Intelligence Artificielle.",
+    "subtitle": "La plateforme d'automatisation WhatsApp la plus avancée. Transformez votre WhatsApp Business en véritable agent commercial avec l'IA. Logiciel WhatsApp Business Maroc conçu pour la performance.",
+    "ctaPrimary": "Explorer les fonctionnalités",
+    "ctaSecondary": "S'auto-héberger"
+  },
+  "benefits": {
+    "title": "Pourquoi AUTOWHATS ?",
+    "subtitle": "Combinez un outil WhatsApp marketing puissant avec l'IA pour automatiser vos réponses WhatsApp et booster vos ventes.",
+    "features": [
+      {
+        "title": "Agents AI Autonomes",
+        "description": "Déployez un assistant virtuel WhatsApp Maroc qui apprend votre métier et gère 80% des demandes instantanément."
+      },
+      {
+        "title": "Inbox Multi-Session",
+        "description": "Gérez des dizaines de numéros WhatsApp entreprise depuis une interface unifiée pour votre équipe."
+      },
+      {
+        "title": "Automatisation WhatsApp Entreprise",
+        "description": "Créez des scénarios de réponse automatique WhatsApp et des tunnels de vente automatisés sans code."
+      },
+      {
+        "title": "Collaboration d'Équipe",
+        "description": "Assignez des chats, gérez le suivi client WhatsApp et suivez les performances de vos agents."
+      },
+      {
+        "title": "Mode Démo",
+        "description": "Testez la plateforme WhatsApp marketing dans un bac à sable avant de connecter votre numéro réel."
+      },
+      {
+        "title": "Vie Privé & Cloud",
+        "description": "Solution WhatsApp CRM self-hosted ou Cloud. Vos données restent sous votre contrôle total."
+      }
+    ]
+  },
+  "showcase": {
+    "label": "VENTES DATA-DRIVEN",
+    "title": "Analytique & Campagnes",
+    "description": "Suivez vos conversions, vos statistiques de livraison et le temps de réponse. Lancez des campagnes de prospection WhatsApp avec variables personnalisées.",
+    "items": [
+      "Messaging en masse personnalisé",
+      "Filtrage & Tagging avancé",
+      "Séquences de relance automatique WhatsApp",
+      "Rapports de performance détaillés"
+    ],
+    "cta": "Voir toutes les fonctions marketing"
+  },
+  "cta": {
+    "title": "Prêt à automatiser votre croissance ?",
+    "subtitle": "Rejoignez des milliers d'entreprises qui utilisent notre outil de conversion leads WhatsApp pour scaler.",
+    "primary": "Commencer gratuitement",
+    "secondary": "Voir les tarifs",
+    "trustLine": "Utilisé par les entreprises en croissance pour automatiser leurs conversations"
+  },
+  "footer": {
+    "description": "Le CRM WhatsApp ultime pour l'automatisation des ventes et le support client intelligent avec IA au Maroc et en France.",
+    "product": "Produit",
+    "support": "Support",
+    "legal": "Légal",
+    "privacy": "Confidentialité",
+    "terms": "Conditions"
+  }
+}

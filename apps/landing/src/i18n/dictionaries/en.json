@@ -1,0 +1,77 @@
+{
+  "nav": {
+    "home": "Home",
+    "product": "Product",
+    "install": "Install",
+    "howToUse": "How to Use",
+    "docs": "Docs",
+    "pricing": "Pricing",
+    "support": "Support",
+    "tryDashboard": "Try Dashboard"
+  },
+  "hero": {
+    "badge": "✨ AI WhatsApp Sales Agent",
+    "title": "Own Your Customer",
+    "titleAccent": "Relationships.",
+    "subtitle": "The most advanced AI-powered WhatsApp CRM and Automation platform. Built for high-performance sales teams and business owners.",
+    "ctaPrimary": "Explore Features",
+    "ctaSecondary": "Self-Host Now"
+  },
+  "benefits": {
+    "title": "Why AUTOWHATS?",
+    "subtitle": "We've combined powerful CRM features with cutting-edge AI to transform how you engage with customers.",
+    "features": [
+      {
+        "title": "Autonomous AI Agents",
+        "description": "Deploy AI that learns your business and handles 80% of routine inquiries instantly."
+      },
+      {
+        "title": "Multi-Session Inbox",
+        "description": "Manage dozens of WhatsApp numbers from a single, unified team interface."
+      },
+      {
+        "title": "Smart Automations",
+        "description": "Build complex message chains and workflows triggered by user behavior."
+      },
+      {
+        "title": "Team Collaboration",
+        "description": "Assign chats, leave internal notes, and track agent performance with ease."
+      },
+      {
+        "title": "Demo Mode",
+        "description": "Try every feature in a sandbox environment before connecting your live number."
+      },
+      {
+        "title": "Privacy First",
+        "description": "Fully self-hostable. Your data stays on your server, under your control."
+      }
+    ]
+  },
+  "showcase": {
+    "label": "DATA-DRIVEN SALES",
+    "title": "Real-time Analytics & Campaigns",
+    "description": "Track your conversion rates, message delivery stats, and agent response times. Launch broadcast campaigns with personalized variables to skyrocket your engagement.",
+    "items": [
+      "Personalized Bulk Messaging",
+      "Advanced Filtering & Tagging",
+      "Automated Follow-up Sequences",
+      "Detailed Performance Reports"
+    ],
+    "cta": "See full campaign features"
+  },
+  "cta": {
+    "title": "Ready to automate your growth?",
+    "subtitle": "Join thousands of businesses scaling their WhatsApp operations with AUTOWHATS.",
+    "primary": "Get Started for Free",
+    "secondary": "View Pricing",
+    "trustLine": "Used by growing businesses to automate conversations"
+  },
+  "footer": {
+    "description": "The ultimate AI-powered WhatsApp CRM for premium sales automation and customer engagement.",
+    "product": "Product",
+    "support": "Support",
+    "legal": "Legal",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service"
+  }
+}
