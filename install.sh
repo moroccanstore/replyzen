@@ -75,34 +75,37 @@ fi
 git clone https://github.com/moroccanstore/autowats.git autowhats
 cd autowhats
 
-# --- 7. DEPENDENCIES, PRISMA & BUILD ---
+# --- 7. DEPENDENCIES, ENV & PRISMA ---
 echo "🟢 Installing dependencies (this may take a few minutes)..."
 cd /var/www/autowhats
 npm install --quiet
 
-# Export environment for Prisma (needed for migration)
-export DATABASE_URL="postgresql://autowhats:autowhats@localhost:5432/autowhats?schema=public"
+echo "🟢 Creating environment file..."
+cat > /var/www/autowhats/.env <<EOF
+DATABASE_URL="postgresql://autowhats:autowhats@localhost:5432/autowhats"
+JWT_SECRET="supersecretkey"
+ENCRYPTION_KEY="32characterslongsecretkey123"
+EOF
+
+# Also create it in the API folder just in case
+cp /var/www/autowhats/.env /var/www/autowhats/apps/api/.env
 
 echo "🟢 Generating Prisma client..."
 cd /var/www/autowhats/apps/api
 npx prisma generate
 
-echo "🟢 Running database migrations..."
+echo "🟢 Running migrations..."
 npx prisma migrate deploy || true
 
 echo "🟢 Building API..."
 cd /var/www/autowhats/apps/api
 npm run build
 
-echo "🟢 Building Web application..."
+echo "🟢 Building Web..."
 cd /var/www/autowhats/apps/web
 npm run build
 
-# --- 8. ENV SETUP ---
-if [ ! -f ".env" ]; then
-    cp .env.example .env
-    echo "✅ .env created"
-fi
+# --- 8. PM2 SETUP ---
 
 # --- 9. INSTALL PM2 ---
 if ! command -v pm2 &> /dev/null; then
