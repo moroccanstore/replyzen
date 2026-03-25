@@ -22,7 +22,26 @@ export function HeroBackground() {
   const rotateX = useTransform(smoothMouseY, [-300, 300], [5, -5]);
   const rotateY = useTransform(smoothMouseX, [-300, 300], [-5, 5]);
 
+  const [isMounted, setIsMounted] = useState(false);
+  const [dataPackets, setDataPackets] = useState<{ d: string }[]>([]);
+  const [nodes, setNodes] = useState<{ left: string; top: string; duration: number; delay: number }[]>([]);
+
   useEffect(() => {
+    setIsMounted(true);
+    
+    // Generate stable random values for data packets
+    setDataPackets([...Array(12)].map(() => ({
+      d: `M ${Math.random() * 100}% 0 L ${Math.random() * 100}% 100%`
+    })));
+
+    // Generate stable random values for AI nodes
+    setNodes([...Array(20)].map(() => ({
+      left: `${Math.random() * 100}%`,
+      top: `${Math.random() * 100}%`,
+      duration: 3 + Math.random() * 5,
+      delay: Math.random() * 5
+    })));
+
     const handleMouseMove = (e: MouseEvent) => {
       const { clientX, clientY } = e;
       const { innerWidth, innerHeight } = window;
@@ -59,17 +78,17 @@ export function HeroBackground() {
           <rect width="100%" height="100%" fill="url(#grid)" />
           
           {/* Animated Data Packets */}
-          {[...Array(12)].map((_, i) => (
+          {isMounted && dataPackets.map((packet, i) => (
             <motion.path
               key={i}
-              d={`M ${Math.random() * 100}% 0 L ${Math.random() * 100}% 100%`}
+              d={packet.d}
               stroke="url(#line-gradient)"
               strokeWidth="1"
               initial={{ pathLength: 0, opacity: 0 }}
               animate={{ 
                 pathLength: [0, 1, 0], 
                 opacity: [0, 0.8, 0],
-                x: [Math.random() * 10, Math.random() * -10]
+                x: [Math.random() * 5, Math.random() * -5] // Slight variation is fine in animate prop
               }}
               transition={{
                 duration: 4 + Math.random() * 4,
@@ -82,13 +101,13 @@ export function HeroBackground() {
         </svg>
 
         {/* Floating AI Nodes (Atmospheric) */}
-        {[...Array(20)].map((_, i) => (
+        {isMounted && nodes.map((node, i) => (
           <motion.div
             key={i}
             className="absolute w-1 h-1 bg-primary rounded-full blur-[1px]"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
+              left: node.left,
+              top: node.top,
             }}
             animate={{
               y: [0, -40, 0],
@@ -96,9 +115,9 @@ export function HeroBackground() {
               scale: [1, 1.5, 1],
             }}
             transition={{
-              duration: 3 + Math.random() * 5,
+              duration: node.duration,
               repeat: Infinity,
-              delay: Math.random() * 5,
+              delay: node.delay,
             }}
           />
         ))}

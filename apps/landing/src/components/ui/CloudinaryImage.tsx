@@ -22,8 +22,9 @@ interface CloudinaryImageProps extends Omit<CldImageProps, "src"> {
  */
 export function CloudinaryImage({ src, alt, width, height, sizes, ...props }: CloudinaryImageProps) {
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const isLocal = typeof src === 'string' && src.startsWith('/');
 
-  if (!cloudName || cloudName === "your_cloud_name_here") {
+  if (!cloudName || cloudName === "your_cloud_name_here" || isLocal) {
     return (
       <Image
         src={src}

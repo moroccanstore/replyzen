@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { 
   Bot, 
   MessageSquare, 
@@ -56,6 +57,17 @@ function FloatingNode({ icon: Icon, className, delay = 0, duration = 6, label }:
 }
 
 export function FloatingElements() {
+  const [isMounted, setIsMounted] = useState(false);
+  const [particles, setParticles] = useState<{ duration: number; delay: number }[]>([]);
+
+  useEffect(() => {
+    setIsMounted(true);
+    setParticles([...Array(6)].map(() => ({
+      duration: 15 + Math.random() * 15,
+      delay: Math.random() * 5
+    })));
+  }, []);
+
   return (
     <div className="absolute inset-0 -z-1 pointer-events-none overflow-hidden select-none">
       {/* Main Nodes */}
@@ -105,7 +117,7 @@ export function FloatingElements() {
       </motion.div>
 
       {/* Atmospheric Particles */}
-      {[...Array(6)].map((_, i) => (
+      {isMounted && particles.map((particle, i) => (
         <motion.div
           key={i}
           className="absolute w-2 h-2 rounded-full bg-primary/30 blur-sm pointer-events-none"
@@ -116,9 +128,10 @@ export function FloatingElements() {
             opacity: [0, 0.4, 0],
           }}
           transition={{
-            duration: 15 + Math.random() * 15,
+            duration: particle.duration,
             repeat: Infinity,
-            ease: "linear"
+            ease: "linear",
+            delay: particle.delay
           }}
         />
       ))}
