@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@theme {
+  --color-background: #0c0e14;
+  --color-foreground: #e6e7f0;
+  --color-primary: #7c3aed;
+  --color-secondary: #bd9dff;
+  --color-card: #171921;
+  --color-muted: #23262e;
+  --color-border: rgba(255, 255, 255, 0.1);
+}
+
+@layer utilities {
+  .glass-panel {
+    background-color: rgba(35, 38, 46, 0.6);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+  }
+
+  .bg-gradient-primary {
+    background-image: linear-gradient(to bottom right, #bd9dff, #8a4cfc);
+  }
+
+  .ambient-glow {
+    box-shadow: 0 0 24px rgba(124, 58, 237, 0.2);
+  }
+}
+
+:root {
+  --background: #0c0e14;
+  --foreground: #e6e7f0;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: inherit;
+}
