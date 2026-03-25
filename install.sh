@@ -75,7 +75,11 @@ fi
 git clone https://github.com/moroccanstore/autowats.git autowhats
 cd autowhats
 
-# --- 7. PRISMA & BUILD ---
+# --- 7. DEPENDENCIES, PRISMA & BUILD ---
+echo "🟢 Installing dependencies (this may take a few minutes)..."
+cd /var/www/autowhats
+npm install --quiet
+
 echo "🟢 Generating Prisma client..."
 cd /var/www/autowhats/apps/api
 npx prisma generate
@@ -85,7 +89,6 @@ npx prisma migrate deploy || true
 
 echo "🟢 Building application (API + Web)..."
 cd /var/www/autowhats
-npm install
 npm run build
 
 # --- 8. ENV SETUP ---
