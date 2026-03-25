@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # AUTOWHATS ONE-CLICK INSTALLER
-# Supported OS: Ubuntu 20.04 / 22.04
-# Website: https://autowhats.com
+# Supported OS: Ubuntu 20.04 / 22.04 / 24.04
 
 set -e
 
@@ -11,97 +10,128 @@ LOG_FILE="/var/log/autowhats-install.log"
 exec > >(tee -i "$LOG_FILE")
 exec 2>&1
 
-# --- 1. PRE-CHECKS & DEPS ---
 echo "🚀 Starting AutoWhats Installation..."
-echo "📝 Logs are being saved to $LOG_FILE"
+echo "📝 Logs: $LOG_FILE"
 
+# --- 1. PRE-CHECKS ---
 if [[ $EUID -ne 0 ]]; then
-   echo "❌ This script must be run as root (use sudo)" 
+   echo "❌ Please run as root (sudo)"
    exit 1
 fi
 
-apt-get update
-apt-get install -y curl git unzip gnupg64 build-essential ufw
+OS_VERSION=$(lsb_release -rs)
+if [[ "$OS_VERSION" != "20.04" && "$OS_VERSION" != "22.04" && "$OS_VERSION" != "24.04" ]]; then
+  echo "❌ Unsupported Ubuntu version: $OS_VERSION"
+  exit 1
+fi
+
+# --- 2. INSTALL DEPENDENCIES ---
+echo "🟢 Installing system dependencies..."
+apt-get update -y
+apt-get install -y curl git unzip ca-certificates gnupg build-essential ufw
 
 # --- FIREWALL ---
-echo "🟢 Configuring Firewall..."
+echo "🟢 Configuring firewall..."
+ufw allow 22/tcp || true
 ufw allow 3000/tcp || true
 ufw allow 3001/tcp || true
-ufw allow 22/tcp || true
-# ufw --force enable # We don't force enable to avoid locking user out if they have custom setup, but we open ports.
 
-
-# --- 2. INSTALL NODE.JS 20 ---
+# --- 3. INSTALL NODE.JS 20 ---
 echo "🟢 Installing Node.js 20..."
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash - || {
+  echo "❌ Failed to setup Node.js repository"
+  exit 1
+}
 apt-get install -y nodejs
 
-# --- 3. INSTALL POSTGRESQL & REDIS ---
+node -v
+npm -v
+
+# --- 4. INSTALL POSTGRESQL & REDIS ---
 echo "🟢 Installing PostgreSQL & Redis..."
 apt-get install -y postgresql postgresql-contrib redis-server
 
 systemctl enable postgresql
 systemctl start postgresql
-systemctl enable redis-server
-systemctl start redis-server
 
-# --- 4. CLONE REPOSITORY ---
-echo "🟢 Cloning AutoWhats Repository..."
+systemctl enable redis-server
+systemctl restart redis-server
+
+# --- 5. SETUP DATABASE ---
+echo "🟢 Setting up PostgreSQL database..."
+sudo -u postgres psql <<EOF
+DO \$\$
+BEGIN
+   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'autowhats') THEN
+      CREATE ROLE autowhats LOGIN PASSWORD 'autowhats';
+   END IF;
+END
+\$\$;
+
+DO \$\$
+BEGIN
+   IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'autowhats') THEN
+      CREATE DATABASE autowhats OWNER autowhats;
+   END IF;
+END
+\$\$;
+EOF
+
+# --- 6. CLONE PROJECT ---
+echo "🟢 Cloning project..."
 mkdir -p /var/www
 cd /var/www
+
 if [ -d "autowhats" ]; then
-    echo "⚠️  Existing installation found at /var/www/autowhats. Backing up..."
+    echo "⚠️ Existing installation found, backing up..."
     mv autowhats "autowhats_backup_$(date +%s)"
 fi
+
 git clone https://github.com/moroccanstore/autowats.git autowhats
 cd autowhats
 
-# --- 5. INSTALL & BUILD ---
-echo "🟢 Installing Dependencies (this may take a few minutes)..."
-npm install --quiet
+# --- 7. INSTALL & BUILD ---
+echo "🟢 Installing dependencies..."
+npm install --silent
 
-echo "🟢 Building Application..."
+echo "🟢 Building application..."
 npm run build
 
-# --- 6. SETUP ENVIRONMENT ---
+# --- 8. ENV SETUP ---
 if [ ! -f ".env" ]; then
     cp .env.example .env
-    echo "✅ .env initialized from example."
+    echo "✅ .env created"
 fi
 
-# --- 7. STARTING APPLICATION ---
-# We use PM2 if available, otherwise suggest it
+# --- 9. INSTALL PM2 ---
 if ! command -v pm2 &> /dev/null; then
-    echo "🟢 Installing PM2 (Process Manager)..."
+    echo "🟢 Installing PM2..."
     npm install -g pm2
 fi
 
-# Determine the start command - we assume turbo build structure
-echo "🟢 Starting Services via PM2..."
-cd /var/www/autowhats
-if [ -f "ecosystem.config.js" ]; then
-    pm2 start ecosystem.config.js
-else
-    echo "⚠️  ecosystem.config.js not found, starting manually..."
-    pm2 start "npm run start:prod" -w api --name "autowhats-api"
-    pm2 start "npm run start" -w web --name "autowhats-web"
-fi
+# --- 10. START SERVICES ---
+echo "🟢 Starting services with PM2..."
 
-echo "🟢 Enabling Startup Persistence..."
+pm2 start npm --name "autowhats-api" --cwd "/var/www/autowhats/apps/api" -- run start:prod
+pm2 start npm --name "autowhats-web" --cwd "/var/www/autowhats/apps/web" -- run start
+
+# --- 11. ENABLE AUTO START ---
 pm2 save
-pm2 startup | tail -n 1 | bash # Automatically run the suggested startup command
+pm2 startup | tail -n 1 | bash
 
-# --- 8. FINALIZE ---
+# --- 12. FINAL OUTPUT ---
 IP=$(curl -s ifconfig.me || curl -s icanhazip.com)
+
 echo "--------------------------------------------------"
-echo "🚀 AutoWhats installed successfully!"
+echo "🎉 AutoWhats Installed Successfully!"
 echo "--------------------------------------------------"
 echo "👉 Open: http://$IP:3000/install"
-echo "📝 Logs: /var/log/autowhats-install.log"
 echo "--------------------------------------------------"
 echo "Next Steps:"
-echo "1. Configure your database in the web interface."
-echo "2. Enter your License Key to activate the system."
-echo "3. After setup, the installer will automatically lock."
+echo "1. Open the link above"
+echo "2. Configure database (auto-filled recommended)"
+echo "3. Enter your License Key"
+echo "4. Complete setup"
 echo "--------------------------------------------------"
-
+echo "Logs: $LOG_FILE"
+echo "--------------------------------------------------"
