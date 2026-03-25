@@ -87,7 +87,7 @@ JWT_SECRET="supersecretkey"
 ENCRYPTION_KEY="32characterslongsecretkey123"
 EOF
 
-# Also create it in the API folder just in case
+# Copy to API folder for Prisma/Build
 cp /var/www/autowhats/.env /var/www/autowhats/apps/api/.env
 
 echo "🟢 Generating Prisma client..."
@@ -98,14 +98,14 @@ echo "🟢 Running migrations..."
 npx prisma migrate deploy || true
 
 echo "🟢 Building API..."
-cd /var/www/autowhats/apps/api
 npm run build
 
 echo "🟢 Building Web..."
-cd /var/www/autowhats/apps/web
+cd ../web
 npm run build
 
 # --- 8. PM2 SETUP ---
+cd /var/www/autowhats
 
 # --- 9. INSTALL PM2 ---
 if ! command -v pm2 &> /dev/null; then
