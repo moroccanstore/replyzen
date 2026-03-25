@@ -59,23 +59,8 @@ systemctl restart redis-server
 
 # --- 5. SETUP DATABASE ---
 echo "🟢 Setting up PostgreSQL database..."
-sudo -u postgres psql <<EOF
-DO \$\$
-BEGIN
-   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'autowhats') THEN
-      CREATE ROLE autowhats LOGIN PASSWORD 'autowhats';
-   END IF;
-END
-\$\$;
-
-DO \$\$
-BEGIN
-   IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'autowhats') THEN
-      CREATE DATABASE autowhats OWNER autowhats;
-   END IF;
-END
-\$\$;
-EOF
+sudo -u postgres psql -c "CREATE USER autowhats WITH PASSWORD 'autowhats';" || true
+sudo -u postgres psql -c "CREATE DATABASE autowhats OWNER autowhats;" || true
 
 # --- 6. CLONE PROJECT ---
 echo "🟢 Cloning project..."
@@ -90,11 +75,17 @@ fi
 git clone https://github.com/moroccanstore/autowats.git autowhats
 cd autowhats
 
-# --- 7. INSTALL & BUILD ---
-echo "🟢 Installing dependencies..."
-npm install --silent
+# --- 7. PRISMA & BUILD ---
+echo "🟢 Generating Prisma client..."
+cd /var/www/autowhats/apps/api
+npx prisma generate
 
-echo "🟢 Building application..."
+echo "🟢 Running database migrations..."
+npx prisma migrate deploy || true
+
+echo "🟢 Building application (API + Web)..."
+cd /var/www/autowhats
+npm install
 npm run build
 
 # --- 8. ENV SETUP ---
@@ -111,15 +102,12 @@ fi
 
 # --- 10. START SERVICES ---
 echo "🟢 Starting services with PM2..."
-
-pm2 start npm --name "autowhats-api" --cwd "/var/www/autowhats/apps/api" -- run start:prod
-pm2 start npm --name "autowhats-web" --cwd "/var/www/autowhats/apps/web" -- run start
-
-# --- 11. ENABLE AUTO START ---
+pm2 delete all || true
+pm2 start ecosystem.config.js
 pm2 save
 pm2 startup | tail -n 1 | bash
 
-# --- 12. FINAL OUTPUT ---
+# --- 11. FINAL OUTPUT ---
 IP=$(curl -s ifconfig.me || curl -s icanhazip.com)
 
 echo "--------------------------------------------------"
@@ -134,4 +122,4 @@ echo "3. Enter your License Key"
 echo "4. Complete setup"
 echo "--------------------------------------------------"
 echo "Logs: $LOG_FILE"
-echo "--------------------------------------------------"
+echo "--------------------------------------------------"

@@ -27,6 +27,7 @@ import { SystemModule } from './modules/system/system.module';
 import { SocketModule } from './modules/socket/socket.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { OrdersModule } from './modules/orders/orders.module';
+import { StorageModule } from './modules/storage/storage.module';
 
 @Module({
   imports: [
@@ -34,9 +35,9 @@ import { OrdersModule } from './modules/orders/orders.module';
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: Joi.object({
-        // Critical — app will NOT start if any of these are missing
-        DATABASE_URL:    Joi.string().uri().required(),
-        JWT_SECRET:      Joi.string().min(32).required(),
+        // Relaxed during installation, enforced in main.ts if installed
+        DATABASE_URL:    Joi.string().uri().optional(),
+        JWT_SECRET:      Joi.string().min(32).optional(),
         ENCRYPTION_KEY:  Joi.string().length(32).required(),
         REDIS_HOST:      Joi.string().default('localhost'),
         REDIS_PORT:      Joi.number().integer().default(6379),
@@ -44,9 +45,15 @@ import { OrdersModule } from './modules/orders/orders.module';
         NODE_ENV:        Joi.string().valid('development', 'production', 'test').default('development'),
         PORT:            Joi.number().integer().default(3001),
         JWT_EXPIRES_IN:  Joi.string().default('7d'),
+        // Cloudflare R2
+        R2_ENDPOINT:           Joi.string().uri().optional(),
+        R2_ACCESS_KEY_ID:      Joi.string().optional(),
+        R2_SECRET_ACCESS_KEY:  Joi.string().optional(),
+        R2_BUCKET:             Joi.string().default('autowhats'),
       }),
       validationOptions: {
-        abortEarly: false, // Show ALL missing vars, not just the first one
+        allowUnknown: true, // Allow for late-initialized DB/JWT vars during install
+        abortEarly: false,
       },
     }),
     ThrottlerModule.forRoot([
@@ -75,6 +82,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     SystemModule,
     SocketModule,
     OrdersModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [

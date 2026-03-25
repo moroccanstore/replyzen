@@ -42,9 +42,35 @@ Unlike typical scripts, AutoWhats includes:
 - **Node.js**: v18 or higher (LTS recommended)
 - **Database**: PostgreSQL (v14+)
 - **Cache**: Redis (v7+)
-- **Process Manager**: PM2 (recommended for production)
+- **Process Manager**: PM2
 
-## 🛠️ Installation
+## 🚀 Pro Installation (Secure 1-Click)
+
+Run this on a clean **Ubuntu 20.04/22.04/24.04** VPS:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/moroccanstore/autowats/main/install.sh | sudo bash
+```
+
+### What happens?
+1. **Bootstrap**: Installs Node.js 20, PostgreSQL, Redis, and PM2.
+2. **Secure Launch**: Starts the Lite Installer on port 3000.
+3. **Activation**: You enter your license key.
+4. **Download**: The system securely fetches the production ZIP from private storage.
+5. **Ready**: Your AI Sales Agent is live!
+**: Automatically opens ports 3000/3001 via `ufw`.
+- 🔄 **Stateful Setup**: The wizard is resumable; if you lose connection, just refresh and continue.
+- 📝 **Centralized Logs**: Installation logs are saved to `/var/log/autowhats-install.log`.
+- 🚀 **Auto-Persistence**: PM2 is pre-configured to keep the app running after server reboots.
+
+Once the script completes:
+1. Open your browser at `http://YOUR-SERVER-IP:3000/install`
+2. Follow the 6-step setup wizard to configure your Database, Redis, and Admin account.
+3. Enter your License Key to activate the system.
+
+---
+
+## 🛠️ Manual Installation
 
 AutoWhats features an automated setup wizard. No coding or manual database configuration is required.
 

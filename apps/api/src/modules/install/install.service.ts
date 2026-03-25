@@ -12,6 +12,8 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import * as bcrypt from 'bcrypt';
 import axios from 'axios';
+import { R2Service } from '../storage/r2.service';
+const AdmZip = require('adm-zip');
 
 @Injectable()
 export class InstallService {
@@ -83,6 +85,7 @@ export class InstallService {
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly r2Service: R2Service,
   ) {}
 
   async isInstalled(): Promise<boolean> {
@@ -318,5 +321,40 @@ export class InstallService {
       this.lockFile,
       `Installed at: ${new Date().toISOString()}\n`,
     );
+  }
+
+  async downloadAndExtractApp(): Promise<{ success: boolean; message: string }> {
+    const zipPath = path.join(process.cwd(), 'autowhats.zip');
+    const extractPath = process.cwd();
+
+    try {
+      this.logger.log('🚀 Starting secure application download...');
+      
+      // 1. Download from R2
+      await this.r2Service.downloadFile('autowhats.zip', zipPath);
+
+      // 2. Extract
+      this.logger.log('📦 Extracting production bundle...');
+      const zip = new AdmZip(zipPath);
+      
+      // We extract to the root, the ZIP structure should match the root
+      zip.extractAllTo(extractPath, true);
+
+      // 3. Cleanup ZIP
+      if (fs.existsSync(zipPath)) {
+        fs.unlinkSync(zipPath);
+      }
+
+      this.logger.log('✅ Extraction complete. Running production dependencies install...');
+      
+      // 4. Install production dependencies (npm install --omit=dev)
+      // Note: We run this in the root
+      execSync('npm install --omit=dev', { stdio: 'inherit' });
+
+      return { success: true, message: 'Application downloaded and extracted successfully' };
+    } catch (error: any) {
+      this.logger.error(`❌ Distribution failure: ${error.message}`);
+      return { success: false, message: `Failed to download or extract app: ${error.message}` };
+    }
   }
 }
