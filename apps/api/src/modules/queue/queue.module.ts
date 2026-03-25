@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MessageProcessor } from './processors/message.processor';
 import { CampaignProcessor } from './processors/campaign.processor';
 import { UsageProcessor } from './processors/usage.processor';
@@ -16,6 +17,16 @@ import { PrismaModule } from '../../prisma/prisma.module';
     AutomationModule,
     SystemModule,
     PrismaModule,
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('REDIS_HOST', 'localhost'),
+          port: configService.get<number>('REDIS_PORT', 6379),
+        },
+      }),
+      inject: [ConfigService],
+    }),
     BullModule.registerQueue(
       { name: 'message-queue' },
       { name: 'campaign-queue' },

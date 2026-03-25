@@ -1,11 +1,11 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
 generator client {
   provider = "prisma-client-js"
 }
-
-datasource db {
-  provider = "postgresql"
-}
-
 
 model User {
   id            String         @id @default(uuid())
@@ -97,6 +97,7 @@ model Conversation {
   @@unique([workspaceId, contactId])
   @@index([workspaceId])
   @@index([lastMessageAt])
+  @@index([workspaceId, status])
 }
 
 model Message {
@@ -111,11 +112,18 @@ model Message {
   status         MessageStatus    @default(SENT)
   isDemo         Boolean          @default(false)
   timestamp      DateTime         @default(now())
+  
+  // AI Metadata (Decision Engine Audit)
+  aiConfidence   Float?
+  aiProvider     String?
+  aiModel        String?
+  
   conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
   @@index([whatsappMsgId])
   @@index([timestamp])
+  @@index([conversationId, direction])
 }
 
 model Automation {
@@ -131,6 +139,7 @@ model Automation {
   workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
+  @@index([workspaceId, isActive])
 }
 
 model Campaign {
@@ -160,19 +169,28 @@ model CampaignRecipient {
   contact    Contact                 @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@unique([campaignId, contactId])
+  @@index([campaignId, status])
 }
 
 model AiSetting {
-  id          String     @id @default(uuid())
-  workspaceId String     @unique
-  provider    AIProvider @default(OPENAI)
-  model       String     @default("gpt-4oti")
-  apiKeyEnc   String?
-  temperature Float      @default(0.7)
-  threshold   Float      @default(0.7)
-  maxTokens   Int        @default(1000)
-  fallbackMsg String?
-  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id            String     @id @default(uuid())
+  workspaceId   String     @unique
+  provider      AIProvider @default(OPENAI)
+  model         String     @default("gpt-4o")
+  apiKeyEnc     String?
+  temperature   Float      @default(0.7)
+  threshold     Float      @default(0.7)
+  maxTokens     Int        @default(1000)
+  fallbackMsg   String?
+  
+  // Personality & Style Upgrades
+  tone          String     @default("friendly") // friendly, professional, casual
+  responseStyle String     @default("short")    // short, medium, detailed
+  useEmojis     Boolean    @default(true)
+  language      String     @default("en")
+  presetName    String?                         // Friendly Sales, Professional Support, etc.
+  
+  workspace     Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model ApiKey {
@@ -212,6 +230,7 @@ model UsageLog {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, type])
+  @@index([workspaceId, createdAt])
 }
 
 model WebhookLog {
@@ -257,6 +276,7 @@ enum ConversationStatus {
   OPEN
   CLOSED
   HUMAN_REQUIRED
+  AI_SUGGESTED
 }
 
 enum MessageDirection {
@@ -269,6 +289,7 @@ enum MessageStatus {
   DELIVERED
   READ
   FAILED
+  SUGGESTED
 }
 
 enum AutomationType {
@@ -305,16 +326,16 @@ enum OrderStatus {
 }
 
 model FailedJob {
-  id         String          @id @default(uuid())
-  queueName  String
-  jobId      String
-  data       Json
-  reason     String
-  stack      String?
-  status     FailedJobStatus @default(PENDING)
-  requeuedAt DateTime?
-  resolvedAt DateTime?
-  createdAt  DateTime        @default(now())
+  id          String          @id @default(uuid())
+  queueName   String
+  jobId       String
+  data        Json
+  reason      String
+  stack       String?
+  status      FailedJobStatus @default(PENDING)
+  requeuedAt  DateTime?
+  resolvedAt  DateTime?
+  createdAt   DateTime        @default(now())
   workspaceId String?
 
   @@index([queueName])
@@ -343,4 +364,11 @@ model License {
   configHash      String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// DB-based installation flag (replaces filesystem install.lock)
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

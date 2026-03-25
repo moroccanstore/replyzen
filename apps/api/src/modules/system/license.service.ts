@@ -197,7 +197,7 @@ export class LicenseService implements OnApplicationBootstrap {
             lastValidatedAt: new Date(),
             status: 'VALID',
             graceExpiresAt: null,
-            config: valid ? config : license.config,
+            config: (valid ? config : license.config) as any,
             configHash: configHash || (license as any).configHash,
             supportEmail: response.data.support?.email,
             supportWhatsapp: response.data.support?.whatsapp,
@@ -261,9 +261,10 @@ export class LicenseService implements OnApplicationBootstrap {
       const lastValidated = license.lastValidatedAt.getTime();
       const diffHours = (now - lastValidated) / (1000 * 60 * 60);
 
-      if (diffHours > 48) {
+      // 7-day offline grace period — prevents license server downtime from killing instances
+      if (diffHours > 168) {
         if (license.status !== 'BLOCKED') {
-          this.logger.error(`[LICENSE] Grace period exceeded (48h). System blocked.`);
+          this.logger.error(`[LICENSE] Grace period exceeded (7 days). System blocked.`);
           await this.prisma.license.update({
             where: { id: license.id },
             data: { status: 'BLOCKED' },
@@ -272,8 +273,8 @@ export class LicenseService implements OnApplicationBootstrap {
         return 'BLOCKED';
       }
 
-      if (diffHours > 24) {
-        this.logger.warn(`[LICENSE] Grace mode active (${Math.round(diffHours)}h since last validation)`);
+      if (diffHours > 144) {
+        this.logger.warn(`[LICENSE] Grace mode active (${Math.round(diffHours)}h since last validation — 7 day limit)`);
         return 'GRACE';
       }
       

@@ -69,6 +69,8 @@ export class UsageService implements OnApplicationBootstrap {
   async checkAndIncrementAIUsage(
     workspaceId: string,
     model: string,
+    provider?: string,
+    confidence?: number,
   ): Promise<void> {
     const weekKey = this.getWeekKey();
     const usageKey = `usage:ai:${workspaceId}:${weekKey}`;
@@ -103,7 +105,7 @@ export class UsageService implements OnApplicationBootstrap {
         count: newCount,
         logEntry: {
           type: 'AI_MESSAGE',
-          metadata: { model },
+          metadata: { model, provider, confidence },
         },
       },
       {

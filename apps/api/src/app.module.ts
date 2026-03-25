@@ -6,6 +6,7 @@ import { LicenseGuard } from './modules/system/license.guard';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
+import * as Joi from 'joi';
 import { QueueModule } from './modules/queue/queue.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -30,13 +31,31 @@ import { OrdersModule } from './modules/orders/orders.module';
 @Module({
   imports: [
     PrismaModule,
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validationSchema: Joi.object({
+        // Critical — app will NOT start if any of these are missing
+        DATABASE_URL:    Joi.string().uri().required(),
+        JWT_SECRET:      Joi.string().min(32).required(),
+        ENCRYPTION_KEY:  Joi.string().length(32).required(),
+        REDIS_HOST:      Joi.string().default('localhost'),
+        REDIS_PORT:      Joi.number().integer().default(6379),
+        // Optional but validated when present
+        NODE_ENV:        Joi.string().valid('development', 'production', 'test').default('development'),
+        PORT:            Joi.number().integer().default(3001),
+        JWT_EXPIRES_IN:  Joi.string().default('7d'),
+      }),
+      validationOptions: {
+        abortEarly: false, // Show ALL missing vars, not just the first one
+      },
+    }),
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
         limit: 10, // Max 10 requests per minute per IP
       },
     ]),
+    // QueueModule is enabled — centralizes all BullMQ queue registrations
     QueueModule,
     AuthModule,
     UsersModule,

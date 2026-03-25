@@ -37,16 +37,29 @@ export class ConversationsService {
     );
   }
 
-  async getConversationDetails(workspaceId: string, conversationId: string) {
-    return this.prisma.conversation.findUnique({
+  async getConversationDetails(
+    workspaceId: string,
+    conversationId: string,
+    limit = 50,
+    skip = 0,
+  ) {
+    const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId, workspaceId },
       include: {
         contact: true,
         messages: {
-          orderBy: { timestamp: 'asc' },
+          orderBy: { timestamp: 'desc' },
+          take: limit,
+          skip: skip,
         },
       },
     });
+
+    if (conversation) {
+      conversation.messages.reverse(); // Return in ascending order for frontend
+    }
+
+    return conversation;
   }
 
   async updateConversationStatus(

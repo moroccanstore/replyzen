@@ -27,8 +27,15 @@ export class ConversationsController {
   async findOne(
     @Param('id') id: string,
     @Query('workspaceId') workspaceId: string,
+    @Query('limit') limit?: string,
+    @Query('skip') skip?: string,
   ) {
-    return this.conversationsService.getConversationDetails(workspaceId, id);
+    return this.conversationsService.getConversationDetails(
+      workspaceId,
+      id,
+      limit ? parseInt(limit, 10) : 50,
+      skip ? parseInt(skip, 10) : 0,
+    );
   }
 
   @Patch(':id/status')

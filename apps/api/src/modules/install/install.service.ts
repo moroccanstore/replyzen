@@ -25,6 +25,16 @@ export class InstallService {
   ) {}
 
   async isInstalled(): Promise<boolean> {
+    try {
+      // PRIMARY: Check DB flag — works correctly in Docker/containers
+      const dbFlag = await this.prisma.systemSetting.findUnique({
+        where: { key: 'installed' },
+      });
+      if (dbFlag?.value === 'true') return true;
+    } catch {
+      // DB not yet migrated — fall through to lockfile check
+    }
+    // FALLBACK: Filesystem lockfile (legacy / pre-migration compatibility)
     return fs.existsSync(this.lockFile);
   }
 
@@ -232,6 +242,17 @@ export class InstallService {
     if (fs.existsSync(this.envTempFile)) {
       fs.renameSync(this.envTempFile, this.envFile);
     }
+    // PRIMARY: Write DB flag (works in Docker/containers)
+    try {
+      await this.prisma.systemSetting.upsert({
+        where: { key: 'installed' },
+        update: { value: 'true' },
+        create: { key: 'installed', value: 'true' },
+      });
+    } catch (e: any) {
+      this.logger.warn(`Could not write install flag to DB: ${e.message}`);
+    }
+    // FALLBACK: Also write lockfile for backward compatibility
     fs.writeFileSync(
       this.lockFile,
       `Installed at: ${new Date().toISOString()}\n`,

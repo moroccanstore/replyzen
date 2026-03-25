@@ -484,86 +484,174 @@ export class MessageProcessor extends WorkerHost {
           conversation.status === ConversationStatus.BOT_ACTIVE &&
           conversation.workspace?.aiSettings
         ) {
+          // 1. Optimized Context: Last 5 messages (more precise, lower cost)
           const history = await this.prisma.message.findMany({
             where: { conversationId: conversation.id },
             orderBy: { timestamp: 'desc' },
-            take: 10,
+            take: 5,
           });
+
+          // 2. Intent Detection (Computed Confidence Source)
+          const lowerContent = content.toLowerCase();
+          const contactTags = (contact as any).tags || [];
+          let detectedIntent = 'CASUAL';
+
+          if (contactTags.includes('ANGRY')) detectedIntent = 'ANGRY';
+          else if (contactTags.includes('LEAD')) detectedIntent = 'PRICING';
+          else if (lowerContent.includes('?') || lowerContent.includes('what') || lowerContent.includes('how')) {
+            detectedIntent = 'FAQ';
+          }
 
           const aiMessages: AIMessage[] = history.reverse().map((m) => ({
             role: m.direction === 'INBOUND' ? 'user' : 'assistant',
             content: m.content || '',
           }));
 
+          const workspaceName = conversation.workspace.name || 'this business';
+          const aiConfig = conversation.workspace.aiSettings as any;
+
+          // 3. Branded Personality Prompt Builder
+          const personalityLine = `Tone: ${aiConfig.tone}. Style: ${aiConfig.responseStyle}. Use Emojis: ${aiConfig.useEmojis}.`;
+          const systemPrompt: AIMessage = {
+            role: 'system',
+            content:
+              `You are a human assistant for ${workspaceName}. ` +
+              `IMPORTANT: Write like a person on WhatsApp. ${personalityLine} ` +
+              `Rule 1: Be very brief. 1-2 lines max. ` +
+              `Rule 2: No formal greetings or AI phrases. ` +
+              `Rule 3: Use casual phrasing (e.g., "don't" instead of "do not"). ` +
+              `Current Intent Context: ${detectedIntent}. ` +
+              `Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long' })}.`,
+          };
+          const fullMessages: AIMessage[] = [systemPrompt, ...aiMessages];
+
           let aiError: any;
           let attempts = 0;
-          const maxAttempts = 3;
+          const maxAttempts = 2;
           let success = false;
 
           while (attempts < maxAttempts && !success) {
             try {
               await this.usageService.checkAndIncrementAIUsage(
                 workspaceId,
-                (conversation.workspace.aiSettings as any).model,
+                aiConfig.model,
               );
 
-              // 1.1 TENANT-BASED AI RATE LIMITER
+              // AI Rate Limiter (Tenant level)
               const rateLimitKey = `ai_limit:${workspaceId}`;
               const currentRequests = await this.redisService.incr(rateLimitKey);
-              if (currentRequests === 1) {
-                await this.redisService.expire(rateLimitKey, 60);
-              }
-              if (currentRequests > 10) {
-                throw new Error('AI Rate limit exceeded.');
-              }
+              if (currentRequests === 1) await this.redisService.expire(rateLimitKey, 60);
+              if (currentRequests > 15) throw new Error('AI Rate limit exceeded.');
 
-              const aiConfig = conversation.workspace.aiSettings as any;
-
-              // 2.2. DEMO PROTECTION (LIMIT 50 MESSAGES)
-              if (conversation.workspace.isDemo) {
-                const demoUsageKey = `demo_usage:${workspaceId}`;
-                const demoCount = await this.redisService.incr(demoUsageKey);
-                if (demoCount === 1) await this.redisService.expire(demoUsageKey, 86400); // 24h reset or just global?
-                
-                if (demoCount > 50) {
-                   throw new Error('DEMO_LIMIT_EXCEEDED');
-                }
-              }
-
-              const aiReply = await this.aiService.generateAiReply(
+              // 3. Generate AI response (Initial quota check)
+              await this.usageService.checkAndIncrementAIUsage(
+                workspaceId, 
+                aiConfig.model,
                 aiConfig.provider,
-                aiMessages,
+              );
+
+              const aiResult = await this.aiService.generateAiReply(
+                aiConfig.provider,
+                fullMessages,
                 {
                   model: aiConfig.model,
                   temperature: aiConfig.temperature,
                   maxTokens: aiConfig.maxTokens,
+                  intent: detectedIntent,
+                  humanizer: {
+                    tone: aiConfig.tone,
+                    responseStyle: aiConfig.responseStyle,
+                    useEmojis: aiConfig.useEmojis,
+                  },
                 },
                 conversation.workspace.isDemo,
               );
 
-              const aiMsg = await this.prisma.message.create({
-                data: {
+              // 4. THE DECISION ENGINE (Auto vs Suggest vs Human)
+              const isAutoSend = aiResult.confidence >= 0.75 && detectedIntent !== 'ANGRY';
+              const isSuggested = aiResult.confidence >= 0.45;
+
+              if (isAutoSend) {
+                // TIER 1: AUTO-SEND
+                for (const [index, msgLine] of aiResult.messages.entries()) {
+                  const isLong = msgLine.length > 50;
+                  const delayMs = isLong ? 3000 + Math.random() * 2000 : 1000 + Math.random() * 1000;
+                  
+                  if (index > 0) await new Promise(r => setTimeout(r, 1500));
+
+                  const aiMsg = await this.prisma.message.create({
+                    data: {
+                      conversationId: conversation.id,
+                      direction: MessageDirection.OUTBOUND,
+                      type: 'TEXT',
+                      content: msgLine,
+                      status: MessageStatus.SENT,
+                      isDemo: conversation.workspace.isDemo,
+                      aiConfidence: aiResult.confidence,
+                      aiProvider: aiResult.provider,
+                      aiModel: aiResult.model,
+                    },
+                  });
+
+                  await this.messageQueue.add('send-message', {
+                    workspaceId,
+                    contactId: contact.id,
+                    messageId: aiMsg.id,
+                    content: msgLine,
+                    type: 'text',
+                  }, { delay: delayMs });
+
+                  this.socketGateway.emitToWorkspace(workspaceId, 'new-message', {
+                    conversationId: conversation.id,
+                    message: aiMsg,
+                  });
+                }
+              } else if (isSuggested) {
+                // TIER 2: AI SUGGESTION
+                this.logger.log(`AI Suggestion generated for ${conversation.id} (Conf: ${aiResult.confidence})`);
+                
+                const aiMsg = await this.prisma.message.create({
+                  data: {
+                    conversationId: conversation.id,
+                    direction: MessageDirection.OUTBOUND,
+                    type: 'TEXT',
+                    content: aiResult.content, // Store full content as one suggestion for UI
+                    status: MessageStatus.SUGGESTED,
+                    isDemo: conversation.workspace.isDemo,
+                    aiConfidence: aiResult.confidence,
+                    aiProvider: aiResult.provider,
+                    aiModel: aiResult.model,
+                  },
+                });
+
+                await this.prisma.conversation.update({
+                  where: { id: conversation.id },
+                  data: { status: ConversationStatus.AI_SUGGESTED },
+                });
+
+                this.socketGateway.emitToWorkspace(workspaceId, 'new-message', {
                   conversationId: conversation.id,
-                  direction: MessageDirection.OUTBOUND,
-                  type: 'TEXT',
-                  content: aiReply.content,
-                  status: MessageStatus.SENT,
-                  isDemo: conversation.workspace.isDemo,
-                },
-              });
-
-              await this.messageQueue.add('send-message', {
-                workspaceId,
-                contactId: contact.id,
-                messageId: aiMsg.id,
-                content: aiReply.content,
-                type: 'text',
-              } satisfies SendMessageJobData);
-
-              this.socketGateway.emitToWorkspace(workspaceId, 'new-message', {
-                conversationId: conversation.id,
-                message: aiMsg,
-              });
+                  message: aiMsg,
+                });
+                
+                this.socketGateway.emitToWorkspace(workspaceId, 'conversation-status-update', {
+                  conversationId: conversation.id,
+                  status: ConversationStatus.AI_SUGGESTED,
+                });
+              } else {
+                // TIER 3: HUMAN ONLY (Flagged)
+                this.logger.warn(`Critically low confidence (${aiResult.confidence}) for ${conversation.id}. Flagging.`);
+                await this.prisma.conversation.update({
+                  where: { id: conversation.id },
+                  data: { status: ConversationStatus.HUMAN_REQUIRED },
+                });
+                
+                this.socketGateway.emitToWorkspace(workspaceId, 'conversation-status-update', {
+                  conversationId: conversation.id,
+                  status: ConversationStatus.HUMAN_REQUIRED,
+                  reason: 'Low AI confidence',
+                });
+              }
 
               success = true;
             } catch (err: any) {
@@ -572,9 +660,7 @@ export class MessageProcessor extends WorkerHost {
               this.logger.error(`AI attempt ${attempts} failed: ${err.message}`);
               if (err.message.includes('quota exceeded')) break;
               if (attempts < maxAttempts) {
-                await new Promise((resolve) =>
-                  setTimeout(resolve, Math.pow(2, attempts) * 1000),
-                );
+                await new Promise((resolve) => setTimeout(resolve, 2000));
               }
             }
           }
