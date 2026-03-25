@@ -34,9 +34,9 @@ import { OrdersModule } from './modules/orders/orders.module';
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: Joi.object({
-        // Relaxed during installation, enforced in main.ts if installed
-        DATABASE_URL:    Joi.string().uri().optional(),
-        JWT_SECRET:      Joi.string().min(32).optional(),
+        // Critical — app will NOT start if any of these are missing
+        DATABASE_URL:    Joi.string().uri().required(),
+        JWT_SECRET:      Joi.string().min(32).required(),
         ENCRYPTION_KEY:  Joi.string().length(32).required(),
         REDIS_HOST:      Joi.string().default('localhost'),
         REDIS_PORT:      Joi.number().integer().default(6379),

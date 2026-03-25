@@ -36,80 +36,51 @@ export class InstallController {
       licenseKey: string;
     },
   ) {
-    if (await this.installService.isInstalled()) {
-      throw new BadRequestException('System already installed');
-    }
-
-    const currentStep = await this.installService.getInstallationStep();
+    await this.ensureNotInstalled();
 
     if (!body.licenseKey) {
       throw new BadRequestException('License key is required');
     }
 
-    // STEP 1 — VERIFY LICENSE
-    if (currentStep < 1) {
-      const licenseCheck = await this.installService.verifyLicense(
-        body.licenseKey,
-        new URL(body.appUrl).hostname,
+    // STEP 2 — WRITE .env FILE
+    await this.installService.writeEnvTemp({
+      DATABASE_URL: body.dbUrl,
+      REDIS_HOST: body.redisHost,
+      REDIS_PORT: String(body.redisPort),
+      APP_URL: body.appUrl,
+      JWT_SECRET: `gen_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+    });
+
+    // STEP 3 — RUN SETUP COMMANDS (Migrations & Generate)
+    const setupResult = await this.installService.runSetupCommands();
+    if (!setupResult.success) {
+      throw new BadRequestException(setupResult.output);
+    }
+
+    // STEP 4 — ACTIVATE LICENSE (Critical for Elite architecture)
+    const activation = await this.licenseService.activate(
+      body.licenseKey,
+      new URL(body.appUrl).hostname,
+    );
+    if (!activation.success) {
+      throw new BadRequestException(
+        `License activation failed: ${activation.message}`,
       );
-      if (!licenseCheck.success) {
-        throw new BadRequestException(licenseCheck.message);
-      }
-      await this.installService.setInstallationStep(1);
     }
 
-    // STEP 2 — CONFIGURE SYSTEM (.env & Encryption)
-    if (currentStep < 2) {
-      await this.installService.writeEnvTemp({
-        DATABASE_URL: body.dbUrl,
-        REDIS_HOST: body.redisHost,
-        REDIS_PORT: String(body.redisPort),
-        APP_URL: body.appUrl,
-        JWT_SECRET: `gen_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-        ENCRYPTION_KEY: `enc_${Date.now()}_${Math.random().toString(36).substring(7).padEnd(20, '0')}`.substring(0, 32),
-      });
-      await this.installService.setInstallationStep(2);
-    }
+    // STEP 5, 6 — ADMIN & WORKSPACES
+    await this.installService.createAdminAndWorkspaces(
+      body.adminEmail,
+      body.adminPass,
+      body.adminName,
+    );
 
-    // STEP 3 — DATABASE SETUP (Migrations)
-    if (currentStep < 3) {
-      const setupResult = await this.installService.runSetupCommands();
-      if (!setupResult.success) {
-        throw new BadRequestException(setupResult.output);
-      }
-      await this.installService.setInstallationStep(3);
-    }
-
-    // STEP 4 — LICENSE ACTIVATION (Token Exchange)
-    if (currentStep < 4) {
-      const activation = await this.licenseService.activate(
-        body.licenseKey,
-        new URL(body.appUrl).hostname,
-      );
-      if (!activation.success) {
-        throw new BadRequestException(
-          `License activation failed: ${activation.message}`,
-        );
-      }
-      await this.installService.setInstallationStep(4);
-    }
-
-    // STEP 5 — ADMIN CREATION
-    if (currentStep < 5) {
-      await this.installService.createAdminAndWorkspaces(
-        body.adminEmail,
-        body.adminPass,
-        body.adminName,
-      );
-      await this.installService.setInstallationStep(5);
-    }
-
-    // FINAL — LOCK & CLEANUP
+    // STEP 7 — LOCK INSTALLER
     await this.installService.finalizeInstall();
 
     return {
       success: true,
-      message: 'AutoWhats successfully installed and locked!',
+      message: 'AutoWhats successfully installed!',
     };
   }
 

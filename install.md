@@ -9,48 +9,37 @@ Ensure your server has the following installed:
 - **Redis Server**
 - **PM2** (Optional but highly recommended)
 
-## 🚀 Option A: One-Click Ubuntu Installer (Recommended)
-
-For the easiest experience on a fresh Ubuntu VPS, run:
+## 2. Prepare the Files
+Upload the project ZIP or clone the repository to your `/var/www` or equivalent directory.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/moroccanstore/autowats/main/install.sh | bash
+cd /path/to/autowhats
+npm install
+npm run build
 ```
 
-**What it does:**
-- Installs Node.js 20, PostgreSQL, and Redis.
-- Configures Firewalls (`ufw`) for ports 3000/3001.
-- Clones and builds the repo.
-- Sets up PM2 for auto-restart on reboot.
-
----
-
-## 🛠️ Option B: Manual Installation
-
-### 1. Prerequisites
-... [Existing steps] ...
-
----
+## 3. Configure the Domain
+Point your domain or subdomain (e.g., `app.yourdomain.com`) to your server's IP and set up a reverse proxy (Nginx recommended) to point to port **3000**.
 
 ## 4. Run the Installer Wizard
 Open your browser and navigate to:
 `http://app.yourdomain.com/install`
 
-The installer now features **Resumable Setup**:
-1. **License Verification**: (Now with 5s timeout & grace mode)
-2. **Database/Redis Setup**
-3. **Admin Creation**
-4. **License Activation**
-5. **Lock & Complete**
-
-*Note: If setup is interrupted, just refresh the page; the system will resume from the last successful step.*
+The installer will guide you through:
+1. **System Check**: Verifying Node.js version and disk permissions.
+2. **Database Setup**: Enter your PostgreSQL connection string.
+3. **Redis Setup**: Enter your Redis host and port.
+4. **Admin Creation**: Set up your primary administrator account.
+5. **License Activation**: Enter your purchase code or license key to activate the system.
 
 ## 5. Deployment
-Start the application using PM2 (already handled if using Option A):
-```bash
-pm2 start ecosystem.config.js
-```
+Once the installer finishes, it will generate an `install.lock` file to prevent future access to the wizard.
 
+Start the application using PM2:
+```bash
+pm2 start npm --name "autowhats-api" --cwd "apps/api" -- run start:prod
+pm2 start npm --name "autowhats-web" --cwd "apps/web" -- run start
+```
 
 ## 🧪 Testing with Demo Mode
 Don't have a WhatsApp Business API yet? No problem! AutoWhats comes with a pre-configured **Demo Workspace**.

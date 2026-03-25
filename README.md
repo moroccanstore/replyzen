@@ -42,28 +42,9 @@ Unlike typical scripts, AutoWhats includes:
 - **Node.js**: v18 or higher (LTS recommended)
 - **Database**: PostgreSQL (v14+)
 - **Cache**: Redis (v7+)
-- **Process## 🚀 One-Click Install (Ubuntu 20/22)
+- **Process Manager**: PM2 (recommended for production)
 
-For a fresh VPS installation, simply run:
-
-```bash
-curl -sSL https://raw.githubusercontent.com/moroccanstore/autowats/main/install.sh | bash
-```
-
-**Professional Features included:**
-- 🛡️ **Auto-Firewall**: Automatically opens ports 3000/3001 via `ufw`.
-- 🔄 **Stateful Setup**: The wizard is resumable; if you lose connection, just refresh and continue.
-- 📝 **Centralized Logs**: Installation logs are saved to `/var/log/autowhats-install.log`.
-- 🚀 **Auto-Persistence**: PM2 is pre-configured to keep the app running after server reboots.
-
-Once the script completes:
-1. Open your browser at `http://YOUR-SERVER-IP:3000/install`
-2. Follow the 6-step setup wizard to configure your Database, Redis, and Admin account.
-3. Enter your License Key to activate the system.
-
----
-
-## 🛠️ Manual Installation
+## 🛠️ Installation
 
 AutoWhats features an automated setup wizard. No coding or manual database configuration is required.
 
