@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev -w api\" \"npm run dev -w web\"",
-    "build": "cd apps/api && npm run build && cd ../web && npm run build",
+    "build": "echo 'Use install.sh for production build' && exit 0",
     "install:all": "npm install && npm run prisma:generate",
     "prisma:generate": "npm run prisma:generate -w api",
     "prisma:migrate": "npm run prisma:migrate -w api",
