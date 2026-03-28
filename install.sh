@@ -62,8 +62,8 @@ echo "🟢 Setting up PostgreSQL database..."
 sudo -u postgres psql -c "CREATE USER autowhats WITH PASSWORD 'autowhats';" || true
 sudo -u postgres psql -c "CREATE DATABASE autowhats OWNER autowhats;" || true
 
-# --- 6. CLONE PROJECT ---
-echo "🟢 Cloning project..."
+# --- 6. CHECK FOR UPLOADED PROJECT FILES ---
+echo "🟢 Checking for project files..."
 mkdir -p /var/www
 cd /var/www
 
@@ -72,12 +72,42 @@ if [ -d "autowhats" ]; then
     mv autowhats "autowhats_backup_$(date +%s)"
 fi
 
-git clone https://github.com/moroccanstore/replyzen.git autowhats
-cd autowhats
+# Create directory and wait for files
+echo "📦 Creating project directory: /var/www/autowhats"
+mkdir -p /var/www/autowhats
+
+# Check if package.json exists (indicates files are present)
+if [ ! -f "/var/www/autowhats/package.json" ]; then
+    echo ""
+    echo "⚠️  Project files not found!"
+    echo ""
+    echo "📥 Please upload your project files to /var/www/autowhats"
+    echo ""
+    echo "Options to upload:"
+    echo "  1. Using SCP from your local machine:"
+    echo "     scp -r /path/to/autowhats root@YOUR_SERVER_IP:/var/www/"
+    echo ""
+    echo "  2. Using SFTP (FileZilla, WinSCP, etc.):"
+    echo "     Connect to: sftp://root@YOUR_SERVER_IP"
+    echo "     Upload files to: /var/www/autowhats"
+    echo ""
+    echo "  3. Using ZIP upload:"
+    echo "     Upload autowhats.zip to /var/www/ and run:"
+    echo "     cd /var/www && unzip autowhats.zip && mv autowhats autowhats_temp && mv autowhats_temp/* autowhats/"
+    echo ""
+    echo "After uploading, run this script again:"
+    echo "  curl -sSL https://raw.githubusercontent.com/moroccanstore/replyzen/main/install.sh | sudo bash"
+    echo ""
+    echo "📝 Installation paused. Upload files then re-run the installer."
+    echo "--------------------------------------------------"
+    exit 0
+fi
+
+cd /var/www/autowhats
+echo "✅ Project files found!"
 
 # --- 7. DEPENDENCIES, ENV & PRISMA ---
 echo "🟢 Installing dependencies (this may take a few minutes)..."
-cd /var/www/autowhats
 npm install --quiet
 
 echo "🟢 Creating environment file..."
