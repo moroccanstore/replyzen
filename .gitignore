@@ -9,12 +9,15 @@ node_modules/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.example
+.env.tmp
 
 # Build outputs
 dist/
 build/
 .next/
 out/
+*.tsbuildinfo
 
 # Prisma
 apps/api/prisma/migrations/dev.db
@@ -23,10 +26,32 @@ apps/api/prisma/migrations/dev.db
 logs/
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output files (temporary)
+api_build_output.txt
+build_output.txt
+prisma_gen_output.txt
+tsc_errors.txt
+lint_errors.txt
+db_error.txt
+err.txt
+prisma_error.txt
+stress-report.txt
+stress-test-error.txt
+stress-test-output.txt
+git_status.txt
+test-db.js
+test-model.js
+test-conn.ts
+test-pg.ts
+test-prisma.ts
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # IDE
 .vscode/
@@ -36,8 +61,30 @@ Thumbs.db
 *.njsproj
 *.sln
 
-# Install lock (generated after setup)
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary
+*.tmp
+*.temp
 installed.lock
+
+# Large files
+*.zip
+*.tar.gz
+
+# Images (screenshots - not needed in repo)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+
+# Duplicate nested structure
+apps/autowhats/
+apps/web/
+apps/legacy_scripts/
 
 # Cache
 .turbo
