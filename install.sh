@@ -27,8 +27,9 @@ fi
 
 # --- 2. INSTALL DEPENDENCIES ---
 echo "🟢 Installing system dependencies..."
-apt-get update -y
-apt-get install -y curl git unzip ca-certificates gnupg build-essential ufw
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y 2>/dev/null
+apt-get install -y curl git unzip ca-certificates gnupg build-essential ufw 2>/dev/null
 
 # --- FIREWALL ---
 echo "🟢 Configuring firewall..."
@@ -49,7 +50,7 @@ npm -v
 
 # --- 4. INSTALL POSTGRESQL & REDIS ---
 echo "🟢 Installing PostgreSQL & Redis..."
-apt-get install -y postgresql postgresql-contrib redis-server
+apt-get install -y postgresql postgresql-contrib redis-server 2>/dev/null
 
 systemctl enable postgresql
 systemctl start postgresql
