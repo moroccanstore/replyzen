@@ -72,7 +72,7 @@ if [ -d "autowhats" ]; then
     mv autowhats "autowhats_backup_$(date +%s)"
 fi
 
-git clone https://github.com/moroccanstore/autowats.git autowhats
+git clone https://github.com/moroccanstore/replyzen.git autowhats
 cd autowhats
 
 # --- 7. DEPENDENCIES, ENV & PRISMA ---
@@ -135,4 +135,4 @@ echo "3. Enter your License Key"
 echo "4. Complete setup"
 echo "--------------------------------------------------"
 echo "Logs: $LOG_FILE"
-echo "--------------------------------------------------"
+echo "--------------------------------------------------"
